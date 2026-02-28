@@ -256,12 +256,16 @@ export async function handleStop() {
     const outputValue = sanitizeContent(message.output || payload.last_assistant_message || "");
     const outputMessages = asMessages("assistant", outputValue);
 
+    const msgTime = message.timestamp ? isoToUnixNano(message.timestamp) : undefined;
+
     const span = createSpan({
       traceId: state.trace_id,
       spanId: randomHex(8),
       parentSpanId: state.current_turn_span_id,
       name: `${message.model || state.model || "claude"}.response`,
       kind: 3,
+      startTimeUnixNano: msgTime,
+      endTimeUnixNano: msgTime,
       attributes: compact([
         attr("orq.span.kind", "llm"),
         attr("gen_ai.operation.name", "chat.completions"),
