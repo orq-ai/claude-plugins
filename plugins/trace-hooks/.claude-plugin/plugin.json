@@ -1,12 +1,8 @@
 {
-  "name": "orq-trace-hooks",
+  "name": "orq-trace",
+  "description": "Automatically trace Claude Code sessions to Orq. Captures sessions, turns, tool calls, and LLM responses as hierarchical OTLP spans.",
   "version": "0.1.0",
-  "description": "OTLP tracing hooks for Claude Code — sends sessions, turns, and tool calls to Orq Traces",
   "author": {
-    "name": "Orq.ai",
-    "url": "https://orq.ai"
-  },
-  "license": "MIT",
-  "keywords": ["orq", "claude-code", "otel", "otlp", "tracing"],
-  "hooks": "./hooks/hooks.json"
+    "name": "Orq AI"
+  }
 }
