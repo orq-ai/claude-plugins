@@ -3,7 +3,7 @@ import path from "node:path";
 
 const STATE_ROOT =
   process.env.ORQ_CLAUDE_STATE_DIR ||
-  path.join(process.env.CLAUDE_CONFIG_DIR || path.join(process.cwd(), ".claude"), "state");
+  path.join(process.env.HOME || process.env.USERPROFILE || "", ".claude", "state");
 
 const BASE_STATE_DIR = path.join(STATE_ROOT, "orq_sessions");
 const BASE_QUEUE_DIR = path.join(STATE_ROOT, "orq_queue");
