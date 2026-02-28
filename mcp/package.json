@@ -1,0 +1,19 @@
+{
+  "name": "@orq-ai/claude-mcp",
+  "version": "0.1.0",
+  "description": "Orq MCP server for Claude Code — access Orq platform tools",
+  "license": "MIT",
+  "files": [
+    ".claude-plugin",
+    ".mcp.json"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/orq-ai/claude-plugins.git",
+    "directory": "mcp"
+  },
+  "keywords": ["orq", "claude-code", "mcp"]
+}

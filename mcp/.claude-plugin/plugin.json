@@ -1,0 +1,12 @@
+{
+  "name": "orq-mcp",
+  "version": "0.1.0",
+  "description": "Orq MCP server for Claude Code — access Orq platform tools",
+  "author": {
+    "name": "Orq.ai",
+    "url": "https://orq.ai"
+  },
+  "license": "MIT",
+  "keywords": ["orq", "claude-code", "mcp"],
+  "mcpServers": "./.mcp.json"
+}
