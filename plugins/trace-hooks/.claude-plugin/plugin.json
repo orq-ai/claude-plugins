@@ -6,6 +6,5 @@
     "name": "Orq AI"
   },
   "license": "MIT",
-  "keywords": ["orq", "claude-code", "otel", "otlp", "tracing"],
-  "hooks": "./hooks/hooks.json"
+  "keywords": ["orq", "claude-code", "otel", "otlp", "tracing"]
 }
