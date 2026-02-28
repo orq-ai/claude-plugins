@@ -1,0 +1,16 @@
+{
+  "name": "orq",
+  "description": "Orq plugins for Claude Code",
+  "plugins": [
+    {
+      "name": "orq-trace-hooks",
+      "description": "OTLP tracing hooks — sends sessions, turns, and tool calls to Orq Traces",
+      "directory": "trace-hooks"
+    },
+    {
+      "name": "orq-mcp",
+      "description": "Orq MCP server — access Orq platform tools from Claude Code",
+      "directory": "mcp"
+    }
+  ]
+}
