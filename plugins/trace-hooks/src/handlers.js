@@ -3,6 +3,7 @@ import { execFileSync } from "node:child_process";
 import {
   attr,
   compact,
+  isoToUnixNano,
   nowUnixNano,
   randomHex,
   readStdinJson,
@@ -15,7 +16,7 @@ import {
   loadSessionState,
   saveSessionState,
 } from "./state.js";
-import { parseAssistantMessages } from "./transcript.js";
+import { parseTranscript } from "./transcript.js";
 
 function noThrow(fn, fallback = null) {
   try {
@@ -205,29 +206,6 @@ export async function handlePostToolUse() {
   }
 
   state.total_tool_calls += 1;
-
-  const toolName = payload.tool_name || payload.toolName || "tool";
-  const inputValue = sanitizeContent(payload.tool_input ?? payload.input);
-  const outputValue = sanitizeContent(payload.tool_response ?? payload.output);
-
-  const span = createSpan({
-    traceId: state.trace_id,
-    spanId: randomHex(8),
-    parentSpanId: state.current_turn_span_id,
-    name: `tool.${toolName}`,
-    kind: 1,
-    attributes: compact([
-      attr("orq.span.kind", "tool"),
-      attr("gen_ai.tool.name", toolName),
-      attr("tool.name", toolName),
-      attr("orq.input.value", toJson(inputValue)),
-      attr("orq.output.value", toJson(outputValue)),
-      attr("input", toStringValue(inputValue)),
-      attr("output", toStringValue(outputValue)),
-    ]),
-  });
-
-  await sendSpan(span);
   await saveSessionState(sessionId, state);
 }
 
@@ -244,8 +222,36 @@ export async function handleStop() {
   }
 
   const transcriptPath = payload.transcript_path || payload.transcriptPath;
-  const parsed = await parseAssistantMessages(transcriptPath, state.last_processed_line || 0);
+  const parsed = await parseTranscript(transcriptPath, state.last_processed_line || 0);
 
+  // Send tool call spans with proper timestamps from the transcript
+  for (const tool of parsed.toolCalls) {
+    const inputValue = sanitizeContent(tool.input);
+    const outputValue = sanitizeContent(tool.output);
+
+    const span = createSpan({
+      traceId: state.trace_id,
+      spanId: randomHex(8),
+      parentSpanId: state.current_turn_span_id,
+      name: `tool.${tool.name}`,
+      kind: 1,
+      startTimeUnixNano: tool.startTimestamp ? isoToUnixNano(tool.startTimestamp) : undefined,
+      endTimeUnixNano: tool.endTimestamp ? isoToUnixNano(tool.endTimestamp) : undefined,
+      attributes: compact([
+        attr("orq.span.kind", "tool"),
+        attr("gen_ai.tool.name", tool.name),
+        attr("tool.name", tool.name),
+        attr("orq.input.value", toJson(inputValue)),
+        attr("orq.output.value", toJson(outputValue)),
+        attr("input", toStringValue(inputValue)),
+        attr("output", toStringValue(outputValue)),
+      ]),
+    });
+
+    await sendSpan(span);
+  }
+
+  // Send LLM response spans
   for (const message of parsed.messages) {
     const outputValue = sanitizeContent(message.output || payload.last_assistant_message || "");
     const outputMessages = asMessages("assistant", outputValue);

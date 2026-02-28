@@ -4,6 +4,14 @@ export function nowUnixNano() {
   return (BigInt(Date.now()) * 1000000n).toString();
 }
 
+export function isoToUnixNano(isoString) {
+  const ms = new Date(isoString).getTime();
+  if (Number.isNaN(ms)) {
+    return nowUnixNano();
+  }
+  return (BigInt(ms) * 1000000n).toString();
+}
+
 export function randomHex(bytes) {
   return crypto.randomBytes(bytes).toString("hex");
 }
