@@ -224,64 +224,83 @@ export async function handleStop() {
   const transcriptPath = payload.transcript_path || payload.transcriptPath;
   const parsed = await parseTranscript(transcriptPath, state.last_processed_line || 0);
 
-  // Send tool call spans with proper timestamps from the transcript
+  // Merge tool calls and LLM messages into a single timeline sorted by timestamp
+  const timeline = [];
+
   for (const tool of parsed.toolCalls) {
-    const inputValue = sanitizeContent(tool.input);
-    const outputValue = sanitizeContent(tool.output);
-
-    const span = createSpan({
-      traceId: state.trace_id,
-      spanId: randomHex(8),
-      parentSpanId: state.current_turn_span_id,
-      name: `tool.${tool.name}`,
-      kind: 1,
-      startTimeUnixNano: tool.startTimestamp ? isoToUnixNano(tool.startTimestamp) : undefined,
-      endTimeUnixNano: tool.endTimestamp ? isoToUnixNano(tool.endTimestamp) : undefined,
-      attributes: compact([
-        attr("orq.span.kind", "tool"),
-        attr("gen_ai.tool.name", tool.name),
-        attr("tool.name", tool.name),
-        attr("orq.input.value", toJson(inputValue)),
-        attr("orq.output.value", toJson(outputValue)),
-        attr("input", toStringValue(inputValue)),
-        attr("output", toStringValue(outputValue)),
-      ]),
-    });
-
-    await sendSpan(span);
+    timeline.push({ type: "tool", timestamp: tool.startTimestamp, data: tool });
   }
 
-  // Send LLM response spans
   for (const message of parsed.messages) {
-    const outputValue = sanitizeContent(message.output || payload.last_assistant_message || "");
-    const outputMessages = asMessages("assistant", outputValue);
+    timeline.push({ type: "llm", timestamp: message.timestamp, data: message });
+  }
 
-    const msgTime = message.timestamp ? isoToUnixNano(message.timestamp) : undefined;
+  // Sort by timestamp so spans are emitted in chronological order
+  timeline.sort((a, b) => {
+    if (!a.timestamp && !b.timestamp) return 0;
+    if (!a.timestamp) return -1;
+    if (!b.timestamp) return 1;
+    return a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0;
+  });
 
-    const span = createSpan({
-      traceId: state.trace_id,
-      spanId: randomHex(8),
-      parentSpanId: state.current_turn_span_id,
-      name: `${message.model || state.model || "claude"}.response`,
-      kind: 3,
-      startTimeUnixNano: msgTime,
-      endTimeUnixNano: msgTime,
-      attributes: compact([
-        attr("orq.span.kind", "llm"),
-        attr("gen_ai.operation.name", "chat.completions"),
-        attr("gen_ai.system", "anthropic"),
-        attr("gen_ai.provider.name", "anthropic"),
-        attr("gen_ai.request.model", message.model || state.model || "unknown"),
-        attr("gen_ai.response.model", message.model || state.model || "unknown"),
-        attr("gen_ai.output.messages", toJson(outputMessages)),
-        attr("gen_ai.response.finish_reasons", toJson([message.stopReason || payload.stop_reason || "stop"])),
-        attr("orq.output.value", toJson({ choices: [{ index: 0, message: outputMessages[0] || { role: "assistant", content: "" }, finish_reason: message.stopReason || "stop" }] })),
-        attr("output", toStringValue(outputValue)),
-        ...usageAttrs(message.usage || {}),
-      ]),
-    });
+  for (const entry of timeline) {
+    if (entry.type === "tool") {
+      const tool = entry.data;
+      const inputValue = sanitizeContent(tool.input);
+      const outputValue = sanitizeContent(tool.output);
 
-    await sendSpan(span);
+      const span = createSpan({
+        traceId: state.trace_id,
+        spanId: randomHex(8),
+        parentSpanId: state.current_turn_span_id,
+        name: `tool.${tool.name}`,
+        kind: 1,
+        startTimeUnixNano: tool.startTimestamp ? isoToUnixNano(tool.startTimestamp) : undefined,
+        endTimeUnixNano: tool.endTimestamp ? isoToUnixNano(tool.endTimestamp) : undefined,
+        attributes: compact([
+          attr("orq.span.kind", "tool"),
+          attr("gen_ai.tool.name", tool.name),
+          attr("tool.name", tool.name),
+          attr("orq.input.value", toJson(inputValue)),
+          attr("orq.output.value", toJson(outputValue)),
+          attr("input", toStringValue(inputValue)),
+          attr("output", toStringValue(outputValue)),
+        ]),
+      });
+
+      await sendSpan(span);
+    } else {
+      const message = entry.data;
+      const outputValue = sanitizeContent(message.output || payload.last_assistant_message || "");
+      const outputMessages = asMessages("assistant", outputValue);
+
+      const msgTime = message.timestamp ? isoToUnixNano(message.timestamp) : undefined;
+
+      const span = createSpan({
+        traceId: state.trace_id,
+        spanId: randomHex(8),
+        parentSpanId: state.current_turn_span_id,
+        name: `${message.model || state.model || "claude"}.response`,
+        kind: 3,
+        startTimeUnixNano: msgTime,
+        endTimeUnixNano: msgTime,
+        attributes: compact([
+          attr("orq.span.kind", "llm"),
+          attr("gen_ai.operation.name", "chat.completions"),
+          attr("gen_ai.system", "anthropic"),
+          attr("gen_ai.provider.name", "anthropic"),
+          attr("gen_ai.request.model", message.model || state.model || "unknown"),
+          attr("gen_ai.response.model", message.model || state.model || "unknown"),
+          attr("gen_ai.output.messages", toJson(outputMessages)),
+          attr("gen_ai.response.finish_reasons", toJson([message.stopReason || payload.stop_reason || "stop"])),
+          attr("orq.output.value", toJson({ choices: [{ index: 0, message: outputMessages[0] || { role: "assistant", content: "" }, finish_reason: message.stopReason || "stop" }] })),
+          attr("output", toStringValue(outputValue)),
+          ...usageAttrs(message.usage || {}),
+        ]),
+      });
+
+      await sendSpan(span);
+    }
   }
 
   state.last_processed_line = parsed.nextLine;
