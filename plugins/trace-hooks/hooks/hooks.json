@@ -6,7 +6,8 @@
           {
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/session-start.js",
-            "async": true
+            "async": true,
+            "silent": true
           }
         ]
       }
@@ -17,7 +18,8 @@
           {
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/user-prompt-submit.js",
-            "async": true
+            "async": true,
+            "silent": true
           }
         ]
       }
@@ -29,7 +31,8 @@
           {
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use.js",
-            "async": true
+            "async": true,
+            "silent": true
           }
         ]
       }
@@ -40,7 +43,8 @@
           {
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/stop.js",
-            "async": true
+            "async": true,
+            "silent": true
           }
         ]
       }
@@ -51,7 +55,8 @@
           {
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/session-end.js",
-            "async": true
+            "async": true,
+            "silent": true
           }
         ]
       }
@@ -62,7 +67,8 @@
           {
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/subagent-start.js",
-            "async": true
+            "async": true,
+            "silent": true
           }
         ]
       }
@@ -73,7 +79,8 @@
           {
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/subagent-stop.js",
-            "async": true
+            "async": true,
+            "silent": true
           }
         ]
       }
