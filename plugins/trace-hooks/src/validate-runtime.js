@@ -5,7 +5,8 @@ const root = path.resolve(path.join(import.meta.dirname, ".."));
 const required = [
   "hooks/session-start.js",
   "hooks/user-prompt-submit.js",
-  "hooks/post-tool-use.js",
+  "hooks/post-tool-use-failure.js",
+  "hooks/pre-compact.js",
   "hooks/stop.js",
   "hooks/session-end.js",
   "hooks/subagent-start.js",

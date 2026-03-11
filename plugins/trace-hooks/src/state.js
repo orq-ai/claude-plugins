@@ -75,3 +75,48 @@ export async function deleteQueuedFile(filePath) {
     // Ignore delete failures
   }
 }
+
+const STALE_SESSION_MS = 24 * 60 * 60 * 1000; // 24 hours
+const STALE_QUEUE_MS = 60 * 60 * 1000; // 1 hour
+
+export async function pruneStaleFiles() {
+  const now = Date.now();
+
+  // Prune orphaned session files (mtime > 24h ago)
+  try {
+    const sessionNames = await fs.readdir(BASE_STATE_DIR);
+    for (const name of sessionNames) {
+      if (!name.endsWith(".json")) continue;
+      const filePath = path.join(BASE_STATE_DIR, name);
+      try {
+        const stat = await fs.stat(filePath);
+        if (now - stat.mtimeMs > STALE_SESSION_MS) {
+          await fs.unlink(filePath);
+        }
+      } catch {
+        // Ignore individual file errors
+      }
+    }
+  } catch {
+    // Ignore if directory doesn't exist
+  }
+
+  // Prune stale queue files (mtime > 1h ago)
+  try {
+    const queueNames = await fs.readdir(BASE_QUEUE_DIR);
+    for (const name of queueNames) {
+      if (!name.endsWith(".json")) continue;
+      const filePath = path.join(BASE_QUEUE_DIR, name);
+      try {
+        const stat = await fs.stat(filePath);
+        if (now - stat.mtimeMs > STALE_QUEUE_MS) {
+          await fs.unlink(filePath);
+        }
+      } catch {
+        // Ignore individual file errors
+      }
+    }
+  } catch {
+    // Ignore if directory doesn't exist
+  }
+}

@@ -7,7 +7,8 @@
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/session-start.js",
             "async": true,
-            "silent": true
+            "silent": true,
+            "timeout": 30
           }
         ]
       }
@@ -19,20 +20,22 @@
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/user-prompt-submit.js",
             "async": true,
-            "silent": true
+            "silent": true,
+            "timeout": 30
           }
         ]
       }
     ],
-    "PostToolUse": [
+    "PostToolUseFailure": [
       {
         "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use.js",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/post-tool-use-failure.js",
             "async": true,
-            "silent": true
+            "silent": true,
+            "timeout": 30
           }
         ]
       }
@@ -44,7 +47,21 @@
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/stop.js",
             "async": true,
-            "silent": true
+            "silent": true,
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/pre-compact.js",
+            "async": true,
+            "silent": true,
+            "timeout": 30
           }
         ]
       }
@@ -56,7 +73,8 @@
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/session-end.js",
             "async": true,
-            "silent": true
+            "silent": true,
+            "timeout": 30
           }
         ]
       }
@@ -68,7 +86,8 @@
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/subagent-start.js",
             "async": true,
-            "silent": true
+            "silent": true,
+            "timeout": 30
           }
         ]
       }
@@ -80,7 +99,8 @@
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/hooks/subagent-stop.js",
             "async": true,
-            "silent": true
+            "silent": true,
+            "timeout": 30
           }
         ]
       }

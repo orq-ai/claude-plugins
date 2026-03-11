@@ -62,6 +62,10 @@ function getHeaders() {
 }
 
 function buildPayload(span) {
+  return buildBatchPayload([span]);
+}
+
+function buildBatchPayload(spans) {
   return {
     resourceSpans: [
       {
@@ -79,7 +83,7 @@ function buildPayload(span) {
               name: SCOPE_NAME,
               version: SDK_VERSION,
             },
-            spans: [span],
+            spans,
           },
         ],
       },
@@ -115,7 +119,15 @@ export async function drainQueue() {
 }
 
 export async function sendSpan(span) {
-  const payload = buildPayload(span);
+  return sendSpans([span]);
+}
+
+export async function sendSpans(spans) {
+  if (spans.length === 0) {
+    return;
+  }
+
+  const payload = buildBatchPayload(spans);
 
   try {
     await drainQueue();

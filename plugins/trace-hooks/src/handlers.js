@@ -9,11 +9,12 @@ import {
   readStdinJson,
   toStringValue,
 } from "./common.js";
-import { sendSpan, createSpan } from "./otlp.js";
+import { sendSpan, sendSpans, createSpan } from "./otlp.js";
 import { sanitizeContent } from "./redact.js";
 import {
   deleteSessionState,
   loadSessionState,
+  pruneStaleFiles,
   saveSessionState,
 } from "./state.js";
 import { parseTranscript } from "./transcript.js";
@@ -143,6 +144,9 @@ export async function handleSessionStart() {
     return;
   }
 
+  // Prune stale session/queue files on startup (best-effort, non-blocking)
+  pruneStaleFiles().catch(() => {});
+
   const existing = await loadSessionState(sessionId);
   if (existing) {
     return;
@@ -193,7 +197,7 @@ export async function handleUserPromptSubmit() {
   await saveSessionState(sessionId, state);
 }
 
-export async function handlePostToolUse() {
+export async function handlePostToolUseFailure() {
   const payload = await readStdinJson();
   const sessionId = getSessionId(payload);
   if (!sessionId) {
@@ -205,8 +209,42 @@ export async function handlePostToolUse() {
     return;
   }
 
-  state.total_tool_calls += 1;
+  state.failed_tool_calls ||= [];
+  state.failed_tool_calls.push({
+    tool_name: payload.tool_name || payload.toolName || "unknown",
+    error: payload.error || payload.stderr || "",
+    timestamp: nowUnixNano(),
+  });
+
   await saveSessionState(sessionId, state);
+}
+
+export async function handlePreCompact() {
+  const payload = await readStdinJson();
+  const sessionId = getSessionId(payload);
+  if (!sessionId) {
+    return;
+  }
+
+  const state = await loadSessionState(sessionId);
+  if (!state) {
+    return;
+  }
+
+  const span = createSpan({
+    traceId: state.trace_id,
+    spanId: randomHex(8),
+    parentSpanId: state.current_turn_span_id || state.root_span_id,
+    name: "claude.context.compact",
+    kind: 1,
+    attributes: compact([
+      attr("orq.span.kind", "event"),
+      attr("claude_code.event", "context_compaction"),
+      attr("claude_code.turn_count_at_compaction", state.turn_count),
+    ]),
+  });
+
+  await sendSpan(span);
 }
 
 export async function handleStop() {
@@ -243,13 +281,15 @@ export async function handleStop() {
     return a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0;
   });
 
+  const spans = [];
+
   for (const entry of timeline) {
     if (entry.type === "tool") {
       const tool = entry.data;
       const inputValue = sanitizeContent(tool.input);
       const outputValue = sanitizeContent(tool.output);
 
-      const span = createSpan({
+      spans.push(createSpan({
         traceId: state.trace_id,
         spanId: randomHex(8),
         parentSpanId: state.current_turn_span_id,
@@ -266,9 +306,7 @@ export async function handleStop() {
           attr("input", toStringValue(inputValue)),
           attr("output", toStringValue(outputValue)),
         ]),
-      });
-
-      await sendSpan(span);
+      }));
     } else {
       const message = entry.data;
       const outputValue = sanitizeContent(message.output || payload.last_assistant_message || "");
@@ -276,7 +314,7 @@ export async function handleStop() {
 
       const msgTime = message.timestamp ? isoToUnixNano(message.timestamp) : undefined;
 
-      const span = createSpan({
+      spans.push(createSpan({
         traceId: state.trace_id,
         spanId: randomHex(8),
         parentSpanId: state.current_turn_span_id,
@@ -297,12 +335,16 @@ export async function handleStop() {
           attr("output", toStringValue(outputValue)),
           ...usageAttrs(message.usage || {}),
         ]),
-      });
-
-      await sendSpan(span);
+      }));
     }
   }
 
+  if (spans.length > 0) {
+    await sendSpans(spans);
+  }
+
+  // Derive tool call count from transcript instead of per-hook tracking
+  state.total_tool_calls = (state.total_tool_calls || 0) + parsed.toolCalls.length;
   state.last_processed_line = parsed.nextLine;
   await saveSessionState(sessionId, state);
 }
@@ -339,6 +381,7 @@ export async function handleSessionEnd() {
       attr("claude_code.git.repo", state.git_repo || ""),
       attr("claude_code.total_turns", state.turn_count || 0),
       attr("claude_code.total_tool_calls", state.total_tool_calls || 0),
+      attr("claude_code.failed_tool_calls", (state.failed_tool_calls || []).length),
       attr("claude_code.end_reason", payload.reason || ""),
     ]),
   });
