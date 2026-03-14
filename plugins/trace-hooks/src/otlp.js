@@ -1,4 +1,5 @@
-import { attr, compact, envOr, nowUnixNano } from "./common.js";
+import { attr, compact, nowUnixNano } from "./common.js";
+import { getApiKey, getBaseUrl } from "./config.js";
 import {
   deleteQueuedFile,
   enqueuePayload,
@@ -17,25 +18,14 @@ function getEndpoint() {
       : `${explicit.replace(/\/$/, "")}/v1/traces`;
   }
 
-  const baseUrl = process.env.ORQ_BASE_URL;
-  if (baseUrl) {
-    try {
-      const url = new URL(baseUrl);
-      const host = url.host.replace(/^my\./, "api.");
-      return `${url.protocol}//${host}/v2/otel/v1/traces`;
-    } catch {
-      // fall through to default
-    }
+  const baseUrl = getBaseUrl();
+  try {
+    const url = new URL(baseUrl);
+    const host = url.host.replace(/^my\./, "api.");
+    return `${url.protocol}//${host}/v2/otel/v1/traces`;
+  } catch {
+    return "https://api.orq.ai/v2/otel/v1/traces";
   }
-
-  const fallback = envOr("ORQ_BASE_URL", "https://api.orq.ai").replace(/\/$/, "");
-  if (fallback.includes("orq.ai") && fallback.includes("my.")) {
-    return `${fallback.replace("//my.", "//api.")}/v2/otel/v1/traces`;
-  }
-  if (fallback.endsWith("/v2/otel")) {
-    return `${fallback}/v1/traces`;
-  }
-  return `${fallback}/v2/otel/v1/traces`;
 }
 
 function getHeaders() {
@@ -43,8 +33,9 @@ function getHeaders() {
     "Content-Type": "application/json",
   };
 
-  if (process.env.ORQ_API_KEY) {
-    headers.Authorization = `Bearer ${process.env.ORQ_API_KEY}`;
+  const apiKey = getApiKey();
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
   }
 
   if (process.env.OTEL_EXPORTER_OTLP_HEADERS) {

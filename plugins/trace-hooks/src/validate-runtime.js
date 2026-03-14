@@ -13,6 +13,7 @@ const required = [
   "hooks/subagent-stop.js",
   "hooks/hooks.json",
   "src/handlers.js",
+  "src/config.js",
   "src/otlp.js",
   "src/state.js",
   "src/transcript.js",
