@@ -1,6 +1,6 @@
 # Orq Claude Code Plugins
 
-Orq plugins for Claude Code — tracing and MCP tools.
+Orq plugins for Claude Code — tracing, MCP tools, and agent skills.
 
 ## Installation
 
@@ -11,30 +11,44 @@ claude plugin marketplace add orq-ai/claude-plugins
 # Install whichever plugins you need
 claude plugin install orq-trace@orq-claude-plugin
 claude plugin install orq-mcp@orq-claude-plugin
+claude plugin install orq-skills@orq-claude-plugin
 ```
 
 ## Configuration
 
-Both plugins require `ORQ_API_KEY`. Set it in `.claude/settings.local.json`:
+### API key
 
-```json
-{
-  "env": {
-    "ORQ_API_KEY": "sk-..."
-  }
-}
-```
+Both the tracing and MCP plugins require an orq.ai API key. You can provide it in several ways:
 
-For the tracing plugin, you can also set:
+- **Environment variable** — set `ORQ_API_KEY` in your shell, `.env` file, or as a command prefix:
+  ```bash
+  ORQ_API_KEY=sk-... claude
+  ```
+
+- **orq CLI profile** — configure a profile with the orq CLI, then either set it as current or reference it by name:
+  ```bash
+  orq config use my-workspace        # sets as current profile
+  ORQ_PROFILE=my-workspace claude    # or reference by name
+  ```
+
+The resolution order is: `ORQ_API_KEY` env var → `ORQ_PROFILE` env var → current orq CLI profile.
+
+### Trace plugin variables
 
 | Variable | Description |
 |---|---|
+| `ORQ_API_KEY` | API key (or use orq CLI profile) |
+| `ORQ_BASE_URL` | Orq API base URL (default: `https://my.orq.ai`) |
+| `ORQ_PROFILE` | orq CLI profile name to use for API key and base URL |
 | `TRACE_TO_ORQ` | Explicitly enable tracing (`true`/`1`) |
-| `ORQ_BASE_URL` | Orq API base URL (default: `https://api.orq.ai`) |
 | `TRACE_ORQ_REDACT_CONTENT` | Strip all input/output bodies from traces |
 | `ORQ_DISABLE_TRACING` | Force-disable tracing (`true`/`1`) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Override the OTLP endpoint directly |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Extra headers for the OTLP endpoint |
 
 Tracing auto-enables when `ORQ_API_KEY` or `OTEL_EXPORTER_OTLP_ENDPOINT` is set.
+
+Environment variables can be set in your shell (`~/.zshrc`), via a `.env` file, or as a command prefix (`ORQ_BASE_URL=... claude`).
 
 ## Plugins
 
@@ -59,6 +73,15 @@ orq.claude_code.session
 
 Orq MCP server — gives Claude Code access to Orq platform tools via `https://my.orq.ai/v2/mcp`.
 
+### [`orq-skills`](./plugins/skills) (submodule → [orq-ai/orq-skills](https://github.com/orq-ai/orq-skills))
+
+Agent skills for the Build → Evaluate → Optimize lifecycle on orq.ai. Includes:
+
+- **Skills** — build-agent, build-evaluator, run-experiment, optimize-prompt, analyze-trace-failures, generate-synthetic-dataset, prompt-learning
+- **Commands** — `/orq:quickstart`, `/orq:invoke`, `/orq:workspace`, `/orq:traces`, `/orq:analytics`, `/orq:models`
+
+See the [orq-skills README](https://github.com/orq-ai/orq-skills) for full documentation.
+
 ## Development
 
 Test plugins locally:
@@ -66,6 +89,7 @@ Test plugins locally:
 ```bash
 claude --plugin-dir ./plugins/trace-hooks
 claude --plugin-dir ./plugins/mcp
+claude --plugin-dir ./plugins/skills
 ```
 
 ## Updating
@@ -75,3 +99,13 @@ After making changes, bump the version in both `marketplace.json` and the releva
 ```bash
 claude plugin marketplace update orq-claude-plugin
 ```
+
+To update the skills submodule to the latest upstream:
+
+```bash
+git submodule update --remote plugins/skills
+```
+
+## License
+
+[MIT](./LICENSE)
