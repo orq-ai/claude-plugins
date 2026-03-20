@@ -21,24 +21,65 @@ function loadOrqConfig() {
   return _cached;
 }
 
+/**
+ * ┌─────────────────────────────────────────────────────────────────┐
+ * │           Credential Resolution Hierarchy (trace hook)         │
+ * ├─────────────────────────────────────────────────────────────────┤
+ * │                                                                │
+ * │  API Key:                                                      │
+ * │    1. ORQ_API_KEY env var              (explicit override)      │
+ * │    2. Profile resolved below                                   │
+ * │                                                                │
+ * │  Profile (determines api_key + base_url):                      │
+ * │    1. ORQ_TRACE_PROFILE env var        (trace-specific)         │
+ * │    2. ORQ_PROFILE env var              (general orq profile)    │
+ * │    3. "current" in ~/.config/orq/config.json  (CLI default)     │
+ * │                                                                │
+ * │  Base URL:                                                     │
+ * │    1. ORQ_BASE_URL env var             (explicit override)      │
+ * │    2. Profile resolved above                                   │
+ * │    3. Default: https://my.orq.ai                               │
+ * │                                                                │
+ * │  Set ORQ_TRACE_PROFILE to decouple trace destination from the  │
+ * │  profile used for CLI/MCP operations.                          │
+ * └─────────────────────────────────────────────────────────────────┘
+ */
 function resolveProfile() {
   const config = loadOrqConfig();
   const profiles = config.profiles || {};
 
-  // ORQ_PROFILE env var takes priority, then the CLI's current profile
-  const profileName = process.env.ORQ_PROFILE || config.current;
-  if (profileName && profiles[profileName]) {
-    return profiles[profileName];
+  const resolved = resolveProfileName();
+  if (resolved.name && profiles[resolved.name]) {
+    return profiles[resolved.name];
   }
 
   return null;
 }
 
 /**
+ * Returns the resolved profile name and which source it came from.
+ */
+export function resolveProfileName() {
+  const config = loadOrqConfig();
+
+  if (process.env.ORQ_TRACE_PROFILE) {
+    return { name: process.env.ORQ_TRACE_PROFILE, source: "ORQ_TRACE_PROFILE env var" };
+  }
+  if (process.env.ORQ_PROFILE) {
+    return { name: process.env.ORQ_PROFILE, source: "ORQ_PROFILE env var" };
+  }
+  if (config.current) {
+    return { name: config.current, source: `~/.config/orq/config.json (current)` };
+  }
+  return { name: null, source: "none — no profile found" };
+}
+
+/**
  * Resolve the API key with the following priority:
  * 1. ORQ_API_KEY env var
- * 2. Profile from ORQ_PROFILE env var
- * 3. Current profile in ~/.config/orq/config.json
+ * 2. Profile from ORQ_TRACE_PROFILE env var
+ * 3. Profile from ORQ_PROFILE env var
+ * 4. Current profile in ~/.config/orq/config.json
  */
 export function getApiKey() {
   if (process.env.ORQ_API_KEY) {
@@ -50,13 +91,35 @@ export function getApiKey() {
 /**
  * Resolve the base URL with the following priority:
  * 1. ORQ_BASE_URL env var
- * 2. Profile from ORQ_PROFILE env var
- * 3. Current profile in ~/.config/orq/config.json
- * 4. Default: https://my.orq.ai
+ * 2. Profile from ORQ_TRACE_PROFILE env var
+ * 3. Profile from ORQ_PROFILE env var
+ * 4. Current profile in ~/.config/orq/config.json
+ * 5. Default: https://my.orq.ai
  */
 export function getBaseUrl() {
   if (process.env.ORQ_BASE_URL) {
     return process.env.ORQ_BASE_URL;
   }
   return resolveProfile()?.base_url || "https://my.orq.ai";
+}
+
+/**
+ * Diagnostic: returns the fully resolved trace config for debugging.
+ */
+export function getTraceConfig() {
+  const profile = resolveProfileName();
+  const apiKey = getApiKey();
+  const baseUrl = getBaseUrl();
+  return {
+    profile: profile.name,
+    profileSource: profile.source,
+    apiKey: apiKey ? `${apiKey.slice(0, 8)}...${apiKey.slice(-4)}` : null,
+    baseUrl,
+    envVars: {
+      ORQ_TRACE_PROFILE: process.env.ORQ_TRACE_PROFILE || null,
+      ORQ_PROFILE: process.env.ORQ_PROFILE || null,
+      ORQ_API_KEY: process.env.ORQ_API_KEY ? "(set)" : null,
+      ORQ_BASE_URL: process.env.ORQ_BASE_URL || null,
+    },
+  };
 }
