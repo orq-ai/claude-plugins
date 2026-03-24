@@ -124,7 +124,7 @@ async function closeCurrentTurn(state, endReason = "turn.closed") {
       attr("claude_code.turn.index", state.turn_count),
       attr("claude_code.turn.end_reason", endReason),
       attr("orq.input.value", toJson({ messages: inputMessages })),
-      attr("gen_ai.input.messages", toJson(inputMessages)),
+      attr("gen_ai.input", toJson({ messages: inputMessages })),
       attr("input", toStringValue(inputValue)),
     ]),
   });
@@ -247,18 +247,7 @@ export async function handlePreCompact() {
   await sendSpan(span);
 }
 
-export async function handleStop() {
-  const payload = await readStdinJson();
-  const sessionId = getSessionId(payload);
-  if (!sessionId) {
-    return;
-  }
-
-  const state = await loadSessionState(sessionId);
-  if (!state || !state.current_turn_span_id) {
-    return;
-  }
-
+async function emitTranscriptSpans(state, payload) {
   const transcriptPath = payload.transcript_path || payload.transcriptPath;
   const parsed = await parseTranscript(transcriptPath, state.last_processed_line || 0);
 
@@ -329,7 +318,7 @@ export async function handleStop() {
           attr("gen_ai.provider.name", "anthropic"),
           attr("gen_ai.request.model", message.model || state.model || "unknown"),
           attr("gen_ai.response.model", message.model || state.model || "unknown"),
-          attr("gen_ai.output.messages", toJson(outputMessages)),
+          attr("gen_ai.output", toJson({ messages: outputMessages })),
           attr("gen_ai.response.finish_reasons", toJson([message.stopReason || payload.stop_reason || "stop"])),
           attr("orq.output.value", toJson({ choices: [{ index: 0, message: outputMessages[0] || { role: "assistant", content: "" }, finish_reason: message.stopReason || "stop" }] })),
           attr("output", toStringValue(outputValue)),
@@ -343,9 +332,24 @@ export async function handleStop() {
     await sendSpans(spans);
   }
 
-  // Derive tool call count from transcript instead of per-hook tracking
+  // Update state with transcript progress
   state.total_tool_calls = (state.total_tool_calls || 0) + parsed.toolCalls.length;
   state.last_processed_line = parsed.nextLine;
+}
+
+export async function handleStop() {
+  const payload = await readStdinJson();
+  const sessionId = getSessionId(payload);
+  if (!sessionId) {
+    return;
+  }
+
+  const state = await loadSessionState(sessionId);
+  if (!state || !state.current_turn_span_id) {
+    return;
+  }
+
+  await emitTranscriptSpans(state, payload);
   await saveSessionState(sessionId, state);
 }
 
@@ -359,6 +363,11 @@ export async function handleSessionEnd() {
   const state = await loadSessionState(sessionId);
   if (!state) {
     return;
+  }
+
+  // Emit any unprocessed transcript spans (covers -p mode where stop hook doesn't fire)
+  if (state.current_turn_span_id) {
+    await emitTranscriptSpans(state, payload);
   }
 
   await closeCurrentTurn(state, payload.reason || "session.end");
