@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 
+import { getApiKey } from "./config.js";
 import {
   attr,
   compact,
@@ -60,17 +61,7 @@ function getPrompt(payload) {
 }
 
 function enabledTracing() {
-  const disabled = process.env.ORQ_DISABLE_TRACING;
-  if (disabled === "1" || disabled === "true") {
-    return false;
-  }
-
-  const explicit = process.env.TRACE_TO_ORQ;
-  if (explicit) {
-    return explicit === "1" || explicit === "true";
-  }
-
-  return Boolean(process.env.ORQ_API_KEY || process.env.OTEL_EXPORTER_OTLP_ENDPOINT);
+  return Boolean(getApiKey());
 }
 
 function asMessages(role, content) {
