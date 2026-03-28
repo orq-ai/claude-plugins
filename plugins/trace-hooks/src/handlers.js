@@ -324,10 +324,10 @@ async function emitTranscriptSpans(state, payload) {
           attr("gen_ai.provider.name", "anthropic"),
           attr("gen_ai.request.model", message.model || state.model || "unknown"),
           attr("gen_ai.response.model", message.model || state.model || "unknown"),
-          attr("gen_ai.output", toJson({ messages: outputMessages })),
+          attr("gen_ai.output", toJson({ messages: outputMessages, choices: [{ index: 0, message: outputMsg }] })),
           attr("gen_ai.response.finish_reasons", toJson([message.stopReason || payload.stop_reason || "stop"])),
           attr("orq.output.value", toJson({ choices: [{ index: 0, message: outputMsg, finish_reason: message.stopReason || "stop" }] })),
-          attr("output", toStringValue(outputValue)),
+          attr("output", toJson({ choices: [{ index: 0, message: outputMsg, finish_reason: message.stopReason || "stop" }] })),
           ...usageAttrs(message.usage || {}),
         ]),
       }));
@@ -514,7 +514,14 @@ export async function handleSubagentStop() {
 
     for (const message of parsed.messages) {
       const msgOutput = sanitizeContent(message.output || "");
-      const msgOutputMessages = asMessages("assistant", msgOutput);
+      const msgParts = (message.parts || []).map(p => ({ ...p, content: sanitizeContent(p.content) }));
+      const msgOutputMsg = {
+        role: "assistant",
+        content: String(msgOutput),
+        ...(msgParts.length > 0 ? { parts: msgParts } : {}),
+        finish_reason: message.stopReason || "stop",
+      };
+      const msgOutputMessages = [msgOutputMsg];
       const msgTime = message.timestamp ? isoToUnixNano(message.timestamp) : undefined;
       spans.push(createSpan({
         traceId: state.trace_id,
@@ -531,10 +538,10 @@ export async function handleSubagentStop() {
           attr("gen_ai.provider.name", "anthropic"),
           attr("gen_ai.request.model", message.model || state.model || "unknown"),
           attr("gen_ai.response.model", message.model || state.model || "unknown"),
-          attr("gen_ai.output", toJson({ messages: msgOutputMessages })),
-          attr("gen_ai.output.messages", toJson(msgOutputMessages)),
-          attr("orq.output.value", toJson({ choices: [{ index: 0, message: msgOutputMessages[0] || { role: "assistant", content: "" }, finish_reason: message.stopReason || "stop" }] })),
-          attr("output", toStringValue(msgOutput)),
+          attr("gen_ai.output", toJson({ messages: msgOutputMessages, choices: [{ index: 0, message: msgOutputMsg }] })),
+          attr("gen_ai.response.finish_reasons", toJson([message.stopReason || "stop"])),
+          attr("orq.output.value", toJson({ choices: [{ index: 0, message: msgOutputMsg, finish_reason: message.stopReason || "stop" }] })),
+          attr("output", toJson({ choices: [{ index: 0, message: msgOutputMsg, finish_reason: message.stopReason || "stop" }] })),
           ...usageAttrs(message.usage || {}),
         ]),
       }));
