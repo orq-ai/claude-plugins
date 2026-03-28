@@ -453,9 +453,13 @@ export async function handleSubagentStop() {
   const subagent = state.subagents[agentId];
   const outputValue = sanitizeContent(payload.last_assistant_message || "");
 
-  const span = createSpan({
+  const subagentSpanId = subagent.span_id;
+  const spans = [];
+
+  // Emit the subagent wrapper span
+  spans.push(createSpan({
     traceId: state.trace_id,
-    spanId: subagent.span_id,
+    spanId: subagentSpanId,
     parentSpanId: subagent.parent_span_id,
     name: `subagent.${subagent.type}`,
     kind: 1,
@@ -468,9 +472,66 @@ export async function handleSubagentStop() {
       attr("orq.output.value", toJson({ messages: asMessages("assistant", outputValue) })),
       attr("output", toStringValue(outputValue)),
     ]),
-  });
+  }));
 
-  await sendSpan(span);
+  // Parse the subagent's own transcript for child spans
+  const agentTranscriptPath = payload.agent_transcript_path || payload.agentTranscriptPath;
+  if (agentTranscriptPath) {
+    const parsed = await parseTranscript(agentTranscriptPath, 0);
+
+    for (const tool of parsed.toolCalls) {
+      if (tool.name === "Agent") continue;
+      const toolInput = sanitizeContent(tool.input);
+      const toolOutput = sanitizeContent(tool.output);
+      spans.push(createSpan({
+        traceId: state.trace_id,
+        spanId: randomHex(8),
+        parentSpanId: subagentSpanId,
+        name: `tool.${tool.name}`,
+        kind: 1,
+        startTimeUnixNano: tool.startTimestamp ? isoToUnixNano(tool.startTimestamp) : undefined,
+        endTimeUnixNano: tool.endTimestamp ? isoToUnixNano(tool.endTimestamp) : undefined,
+        attributes: compact([
+          attr("orq.span.kind", "tool"),
+          attr("gen_ai.tool.name", tool.name),
+          attr("tool.name", tool.name),
+          attr("orq.input.value", toJson(toolInput)),
+          attr("orq.output.value", toJson(toolOutput)),
+          attr("input", toStringValue(toolInput)),
+          attr("output", toStringValue(toolOutput)),
+        ]),
+      }));
+    }
+
+    for (const message of parsed.messages) {
+      const msgOutput = sanitizeContent(message.output || "");
+      const msgOutputMessages = asMessages("assistant", msgOutput);
+      const msgTime = message.timestamp ? isoToUnixNano(message.timestamp) : undefined;
+      spans.push(createSpan({
+        traceId: state.trace_id,
+        spanId: randomHex(8),
+        parentSpanId: subagentSpanId,
+        name: `${message.model || state.model || "claude"}.response`,
+        kind: 3,
+        startTimeUnixNano: msgTime,
+        endTimeUnixNano: msgTime,
+        attributes: compact([
+          attr("orq.span.kind", "llm"),
+          attr("gen_ai.operation.name", "chat.completions"),
+          attr("gen_ai.system", "anthropic"),
+          attr("gen_ai.provider.name", "anthropic"),
+          attr("gen_ai.request.model", message.model || state.model || "unknown"),
+          attr("gen_ai.response.model", message.model || state.model || "unknown"),
+          attr("gen_ai.output", toJson({ messages: msgOutputMessages })),
+          attr("orq.output.value", toJson({ choices: [{ index: 0, message: msgOutputMessages[0] || { role: "assistant", content: "" }, finish_reason: message.stopReason || "stop" }] })),
+          attr("output", toStringValue(msgOutput)),
+          ...usageAttrs(message.usage || {}),
+        ]),
+      }));
+    }
+  }
+
+  await sendSpans(spans);
 
   delete state.subagents[agentId];
   await saveSessionState(sessionId, state);
