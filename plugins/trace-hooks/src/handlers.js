@@ -297,7 +297,14 @@ async function emitTranscriptSpans(state, payload) {
     } else {
       const message = entry.data;
       const outputValue = sanitizeContent(message.output || payload.last_assistant_message || "");
-      const outputMessages = asMessages("assistant", outputValue);
+      const parts = message.parts || [];
+      const hasParts = parts.length > 0;
+
+      // Use parts format (with reasoning) when available, fall back to plain content
+      const outputMsg = hasParts
+        ? { role: "assistant", parts: parts.map(p => ({ ...p, content: sanitizeContent(p.content) })), finish_reason: message.stopReason || "stop" }
+        : { role: "assistant", content: String(outputValue), finish_reason: message.stopReason || "stop" };
+      const outputMessages = [outputMsg];
 
       const msgTime = message.timestamp ? isoToUnixNano(message.timestamp) : undefined;
 
@@ -319,7 +326,7 @@ async function emitTranscriptSpans(state, payload) {
           attr("gen_ai.output", toJson({ messages: outputMessages })),
           attr("gen_ai.output.messages", toJson(outputMessages)),
           attr("gen_ai.response.finish_reasons", toJson([message.stopReason || payload.stop_reason || "stop"])),
-          attr("orq.output.value", toJson({ choices: [{ index: 0, message: outputMessages[0] || { role: "assistant", content: "" }, finish_reason: message.stopReason || "stop" }] })),
+          attr("orq.output.value", toJson({ choices: [{ index: 0, message: outputMsg, finish_reason: message.stopReason || "stop" }] })),
           attr("output", toStringValue(outputValue)),
           ...usageAttrs(message.usage || {}),
         ]),

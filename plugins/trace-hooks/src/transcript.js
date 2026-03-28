@@ -22,6 +22,30 @@ function textFromContent(content) {
     .join("\n");
 }
 
+function partsFromContent(content) {
+  if (!Array.isArray(content)) {
+    return [];
+  }
+
+  return content
+    .map((block) => {
+      if (!block || typeof block !== "object") {
+        return null;
+      }
+      if (block.type === "thinking" && typeof block.thinking === "string") {
+        return { type: "reasoning", content: block.thinking };
+      }
+      if (typeof block.text === "string") {
+        return { type: "text", content: block.text };
+      }
+      if (block.type === "tool_use") {
+        return { type: "tool_call", name: block.name, id: block.id, arguments: block.input };
+      }
+      return null;
+    })
+    .filter(Boolean);
+}
+
 export async function parseTranscript(transcriptPath, lastProcessedLine = 0) {
   if (!transcriptPath) {
     return {
@@ -84,6 +108,7 @@ export async function parseTranscript(transcriptPath, lastProcessedLine = 0) {
           model: message.model || "unknown",
           usage,
           output,
+          parts: partsFromContent(messageContent),
           stopReason: message.stop_reason,
           timestamp: parsed.timestamp,
         });
