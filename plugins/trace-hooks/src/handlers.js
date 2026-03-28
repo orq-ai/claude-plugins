@@ -116,7 +116,6 @@ async function closeCurrentTurn(state, endReason = "turn.closed") {
       attr("claude_code.turn.end_reason", endReason),
       attr("orq.input.value", toJson({ messages: inputMessages })),
       attr("gen_ai.input", toJson({ messages: inputMessages })),
-      attr("gen_ai.input.messages", toJson(inputMessages)),
       attr("input", toStringValue(inputValue)),
     ]),
   });
@@ -297,13 +296,15 @@ async function emitTranscriptSpans(state, payload) {
     } else {
       const message = entry.data;
       const outputValue = sanitizeContent(message.output || payload.last_assistant_message || "");
-      const parts = message.parts || [];
-      const hasParts = parts.length > 0;
+      const parts = (message.parts || []).map(p => ({ ...p, content: sanitizeContent(p.content) }));
 
-      // Use parts format (with reasoning) when available, fall back to plain content
-      const outputMsg = hasParts
-        ? { role: "assistant", parts: parts.map(p => ({ ...p, content: sanitizeContent(p.content) })), finish_reason: message.stopReason || "stop" }
-        : { role: "assistant", content: String(outputValue), finish_reason: message.stopReason || "stop" };
+      // Include both content (for list views / backwards compat) and parts (for rich display with reasoning)
+      const outputMsg = {
+        role: "assistant",
+        content: String(outputValue),
+        ...(parts.length > 0 ? { parts } : {}),
+        finish_reason: message.stopReason || "stop",
+      };
       const outputMessages = [outputMsg];
 
       const msgTime = message.timestamp ? isoToUnixNano(message.timestamp) : undefined;
@@ -324,7 +325,6 @@ async function emitTranscriptSpans(state, payload) {
           attr("gen_ai.request.model", message.model || state.model || "unknown"),
           attr("gen_ai.response.model", message.model || state.model || "unknown"),
           attr("gen_ai.output", toJson({ messages: outputMessages })),
-          attr("gen_ai.output.messages", toJson(outputMessages)),
           attr("gen_ai.response.finish_reasons", toJson([message.stopReason || payload.stop_reason || "stop"])),
           attr("orq.output.value", toJson({ choices: [{ index: 0, message: outputMsg, finish_reason: message.stopReason || "stop" }] })),
           attr("output", toStringValue(outputValue)),
