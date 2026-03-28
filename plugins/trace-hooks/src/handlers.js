@@ -269,6 +269,12 @@ async function emitTranscriptSpans(state, payload) {
       const inputValue = sanitizeContent(tool.input);
       const outputValue = sanitizeContent(tool.output);
 
+      // Skip Agent tool calls — SubagentStart/SubagentStop hooks handle these
+      // with richer metadata (agent ID, proper type from hook payload).
+      if (tool.name === "Agent") {
+        continue;
+      }
+
       spans.push(createSpan({
         traceId: state.trace_id,
         spanId: randomHex(8),
