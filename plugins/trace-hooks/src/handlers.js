@@ -116,6 +116,7 @@ async function closeCurrentTurn(state, endReason = "turn.closed") {
       attr("claude_code.turn.end_reason", endReason),
       attr("orq.input.value", toJson({ messages: inputMessages })),
       attr("gen_ai.input", toJson({ messages: inputMessages })),
+      attr("gen_ai.input.messages", toJson(inputMessages)),
       attr("input", toStringValue(inputValue)),
     ]),
   });
@@ -316,6 +317,7 @@ async function emitTranscriptSpans(state, payload) {
           attr("gen_ai.request.model", message.model || state.model || "unknown"),
           attr("gen_ai.response.model", message.model || state.model || "unknown"),
           attr("gen_ai.output", toJson({ messages: outputMessages })),
+          attr("gen_ai.output.messages", toJson(outputMessages)),
           attr("gen_ai.response.finish_reasons", toJson([message.stopReason || payload.stop_reason || "stop"])),
           attr("orq.output.value", toJson({ choices: [{ index: 0, message: outputMessages[0] || { role: "assistant", content: "" }, finish_reason: message.stopReason || "stop" }] })),
           attr("output", toStringValue(outputValue)),
@@ -523,6 +525,7 @@ export async function handleSubagentStop() {
           attr("gen_ai.request.model", message.model || state.model || "unknown"),
           attr("gen_ai.response.model", message.model || state.model || "unknown"),
           attr("gen_ai.output", toJson({ messages: msgOutputMessages })),
+          attr("gen_ai.output.messages", toJson(msgOutputMessages)),
           attr("orq.output.value", toJson({ choices: [{ index: 0, message: msgOutputMessages[0] || { role: "assistant", content: "" }, finish_reason: message.stopReason || "stop" }] })),
           attr("output", toStringValue(msgOutput)),
           ...usageAttrs(message.usage || {}),
