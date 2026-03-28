@@ -356,7 +356,16 @@ export async function handleSessionEnd() {
     return;
   }
 
-  // Emit any unprocessed transcript spans (covers -p mode where stop hook doesn't fire)
+  // If no turn was opened (e.g. -p mode where UserPromptSubmit may not fire),
+  // create a synthetic turn so transcript sub-spans have a parent.
+  if (!state.current_turn_span_id && state.turn_count === 0) {
+    state.turn_count = 1;
+    state.current_turn_span_id = randomHex(8);
+    state.current_turn_started_at_ns = state.session_started_at_ns;
+    state.current_turn_input = payload.prompt || "";
+  }
+
+  // Emit any unprocessed transcript spans
   if (state.current_turn_span_id) {
     await emitTranscriptSpans(state, payload);
   }
