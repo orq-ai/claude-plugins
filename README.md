@@ -1,5 +1,7 @@
 # Orq Claude Code Plugins
 
+> **Alpha**: The trace hooks plugin is in active development. APIs, span shapes, and configuration options may change without notice.
+
 Orq plugins for Claude Code — tracing, MCP tools, and agent skills.
 
 ## Installation
