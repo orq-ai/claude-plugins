@@ -20,28 +20,18 @@ claude plugin install orq-skills@orq-claude-plugin
 
 ### API key
 
-Both the tracing and MCP plugins require an orq.ai API key. You can provide it in several ways:
+Both the tracing and MCP plugins require an orq.ai API key. Set `ORQ_API_KEY` in your shell, `.env` file, or as a command prefix:
 
-- **Environment variable** — set `ORQ_API_KEY` in your shell, `.env` file, or as a command prefix:
-  ```bash
-  ORQ_API_KEY=sk-... claude
-  ```
-
-- **orq CLI profile** — configure a profile with the orq CLI, then either set it as current or reference it by name:
-  ```bash
-  orq config use my-workspace        # sets as current profile
-  ORQ_PROFILE=my-workspace claude    # or reference by name
-  ```
-
-The resolution order is: `ORQ_API_KEY` env var → `ORQ_PROFILE` env var → current orq CLI profile.
+```bash
+ORQ_API_KEY=sk-... claude
+```
 
 ### Trace plugin variables
 
 | Variable | Description |
 |---|---|
-| `ORQ_API_KEY` | API key (or use orq CLI profile) |
+| `ORQ_API_KEY` | API key |
 | `ORQ_BASE_URL` | Orq API base URL (default: `https://my.orq.ai`) |
-| `ORQ_PROFILE` | orq CLI profile name to use for API key and base URL |
 | `TRACE_TO_ORQ` | Explicitly enable tracing (`true`/`1`) |
 | `TRACE_ORQ_REDACT_CONTENT` | Strip all input/output bodies from traces |
 | `ORQ_DISABLE_TRACING` | Force-disable tracing (`true`/`1`) |
