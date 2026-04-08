@@ -238,9 +238,9 @@ export async function handlePreCompact() {
   await sendSpan(span);
 }
 
-async function emitTranscriptSpans(state, payload) {
+async function emitTranscriptSpans(state, payload, { emitPending = false } = {}) {
   const transcriptPath = payload.transcript_path || payload.transcriptPath;
-  const parsed = await parseTranscript(transcriptPath, state.last_processed_line || 0);
+  const parsed = await parseTranscript(transcriptPath, state.last_processed_line || 0, { emitPending });
 
   // Merge tool calls and LLM messages into a single timeline sorted by timestamp
   const timeline = [];
@@ -262,6 +262,10 @@ async function emitTranscriptSpans(state, payload) {
   });
 
   const spans = [];
+  // Track end time of previous entry so LLM spans (which only have one
+  // timestamp in the transcript) can use it as a start time instead of
+  // producing zero-duration spans.
+  let previousEndNs = state.current_turn_started_at_ns || null;
 
   for (const entry of timeline) {
     if (entry.type === "tool") {
@@ -275,14 +279,16 @@ async function emitTranscriptSpans(state, payload) {
         continue;
       }
 
+      const toolStartNs = tool.startTimestamp ? isoToUnixNano(tool.startTimestamp) : undefined;
+      const toolEndNs = tool.endTimestamp ? isoToUnixNano(tool.endTimestamp) : undefined;
       spans.push(createSpan({
         traceId: state.trace_id,
         spanId: randomHex(8),
         parentSpanId: state.current_turn_span_id,
         name: `tool.${tool.name}`,
         kind: 1,
-        startTimeUnixNano: tool.startTimestamp ? isoToUnixNano(tool.startTimestamp) : undefined,
-        endTimeUnixNano: tool.endTimestamp ? isoToUnixNano(tool.endTimestamp) : undefined,
+        startTimeUnixNano: toolStartNs,
+        endTimeUnixNano: toolEndNs,
         attributes: compact([
           attr("orq.span.kind", "tool"),
           attr("gen_ai.tool.name", tool.name),
@@ -291,8 +297,10 @@ async function emitTranscriptSpans(state, payload) {
           attr("orq.output.value", outputValue),
           attr("input", toStringValue(inputValue)),
           attr("output", toStringValue(outputValue)),
+          tool.incomplete ? attr("claude_code.tool.incomplete", true) : null,
         ]),
       }));
+      previousEndNs = toolEndNs || toolStartNs || previousEndNs;
     } else {
       const message = entry.data;
       const outputValue = sanitizeContent(message.output || payload.last_assistant_message || "");
@@ -307,7 +315,9 @@ async function emitTranscriptSpans(state, payload) {
       };
       const outputMessages = [outputMsg];
 
-      const msgTime = message.timestamp ? isoToUnixNano(message.timestamp) : undefined;
+      const msgEndNs = message.timestamp ? isoToUnixNano(message.timestamp) : undefined;
+      // Use previous entry's end as start so LLM spans reflect real latency.
+      const msgStartNs = previousEndNs || msgEndNs;
 
       spans.push(createSpan({
         traceId: state.trace_id,
@@ -315,8 +325,8 @@ async function emitTranscriptSpans(state, payload) {
         parentSpanId: state.current_turn_span_id,
         name: `${message.model || state.model || "claude"}.response`,
         kind: 3,
-        startTimeUnixNano: msgTime,
-        endTimeUnixNano: msgTime,
+        startTimeUnixNano: msgStartNs,
+        endTimeUnixNano: msgEndNs,
         attributes: compact([
           attr("orq.span.kind", "llm"),
           attr("gen_ai.operation.name", "chat.completions"),
@@ -325,12 +335,13 @@ async function emitTranscriptSpans(state, payload) {
           attr("gen_ai.request.model", message.model || state.model || "unknown"),
           attr("gen_ai.response.model", message.model || state.model || "unknown"),
           attr("gen_ai.output", toJson({ messages: outputMessages, choices: [{ index: 0, message: outputMsg }] })),
-          attr("gen_ai.response.finish_reasons", toJson([message.stopReason || payload.stop_reason || "stop"])),
+          attr("gen_ai.response.finish_reasons", [message.stopReason || payload.stop_reason || "stop"]),
           attr("orq.output.value", toJson({ choices: [{ index: 0, message: outputMsg, finish_reason: message.stopReason || "stop" }] })),
           attr("output", toJson({ choices: [{ index: 0, message: outputMsg, finish_reason: message.stopReason || "stop" }] })),
           ...usageAttrs(message.usage || {}),
         ]),
       }));
+      previousEndNs = msgEndNs || previousEndNs;
     }
   }
 
@@ -356,6 +367,7 @@ export async function handleStop() {
   }
 
   await emitTranscriptSpans(state, payload);
+  await closeCurrentTurn(state, "turn.stop");
   await saveSessionState(sessionId, state);
 }
 
@@ -380,13 +392,8 @@ export async function handleSessionEnd() {
     state.current_turn_input = payload.prompt || "";
   }
 
-  // Emit any unprocessed transcript spans
-  if (state.current_turn_span_id) {
-    await emitTranscriptSpans(state, payload);
-  }
-
-  await closeCurrentTurn(state, payload.reason || "session.end");
-
+  // Emit root span FIRST so backends that enforce parent-before-child
+  // ordering don't treat subsequent turn/tool/LLM spans as orphaned.
   const rootSpan = createSpan({
     traceId: state.trace_id,
     spanId: state.root_span_id,
@@ -409,8 +416,16 @@ export async function handleSessionEnd() {
       attr("claude_code.end_reason", payload.reason || ""),
     ]),
   });
-
   await sendSpan(rootSpan);
+
+  // Emit any unprocessed transcript spans (emitPending: surface any tool
+  // calls with no matching tool_result so they don't vanish from the trace)
+  if (state.current_turn_span_id) {
+    await emitTranscriptSpans(state, payload, { emitPending: true });
+  }
+
+  await closeCurrentTurn(state, payload.reason || "session.end");
+
   await deleteSessionState(sessionId);
 }
 
@@ -539,7 +554,7 @@ export async function handleSubagentStop() {
           attr("gen_ai.request.model", message.model || state.model || "unknown"),
           attr("gen_ai.response.model", message.model || state.model || "unknown"),
           attr("gen_ai.output", toJson({ messages: msgOutputMessages, choices: [{ index: 0, message: msgOutputMsg }] })),
-          attr("gen_ai.response.finish_reasons", toJson([message.stopReason || "stop"])),
+          attr("gen_ai.response.finish_reasons", [message.stopReason || "stop"]),
           attr("orq.output.value", toJson({ choices: [{ index: 0, message: msgOutputMsg, finish_reason: message.stopReason || "stop" }] })),
           attr("output", toJson({ choices: [{ index: 0, message: msgOutputMsg, finish_reason: message.stopReason || "stop" }] })),
           ...usageAttrs(message.usage || {}),

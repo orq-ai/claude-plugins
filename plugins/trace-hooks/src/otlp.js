@@ -99,11 +99,19 @@ async function postPayload(payload) {
 export async function drainQueue() {
   const queueFiles = await listQueuedFiles();
   for (const filePath of queueFiles) {
+    let payload;
     try {
-      const payload = await readQueuedPayload(filePath);
+      payload = await readQueuedPayload(filePath);
+    } catch {
+      // Corrupt/unreadable file — drop it and continue draining.
+      await deleteQueuedFile(filePath);
+      continue;
+    }
+    try {
       await postPayload(payload);
       await deleteQueuedFile(filePath);
     } catch {
+      // Network/endpoint failure — stop draining and retry next invocation.
       break;
     }
   }

@@ -46,7 +46,7 @@ function partsFromContent(content) {
     .filter(Boolean);
 }
 
-export async function parseTranscript(transcriptPath, lastProcessedLine = 0) {
+export async function parseTranscript(transcriptPath, lastProcessedLine = 0, { emitPending = false } = {}) {
   if (!transcriptPath) {
     return {
       messages: [],
@@ -102,6 +102,7 @@ export async function parseTranscript(transcriptPath, lastProcessedLine = 0) {
           prev.stopReason = message.stop_reason;
           prev.model = message.model || prev.model;
           prev.timestamp = parsed.timestamp;
+          prev.parts = partsFromContent(messageContent);
         }
       } else {
         messages.push({
@@ -136,10 +137,13 @@ export async function parseTranscript(transcriptPath, lastProcessedLine = 0) {
           if (block?.type === "tool_result" && block.tool_use_id) {
             const pending = pendingTools.get(block.tool_use_id);
             if (pending) {
+              const resultContent = Array.isArray(block.content)
+                ? textFromContent(block.content)
+                : block.content;
               toolCalls.push({
                 name: pending.name,
                 input: pending.input,
-                output: block.content,
+                output: resultContent,
                 startTimestamp: pending.startTimestamp,
                 endTimestamp: parsed.timestamp,
               });
@@ -149,6 +153,20 @@ export async function parseTranscript(transcriptPath, lastProcessedLine = 0) {
         }
       }
     }
+  }
+
+  // Emit incomplete tool calls (no matching tool_result) so they don't vanish
+  // from the trace. Only done at session end to avoid double-emission when
+  // the tool_result arrives in a later parse window.
+  if (emitPending) for (const pending of pendingTools.values()) {
+    toolCalls.push({
+      name: pending.name,
+      input: pending.input,
+      output: "",
+      startTimestamp: pending.startTimestamp,
+      endTimestamp: null,
+      incomplete: true,
+    });
   }
 
   return {

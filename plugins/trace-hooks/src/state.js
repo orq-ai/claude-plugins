@@ -31,7 +31,12 @@ export async function loadSessionState(sessionId) {
 
 export async function saveSessionState(sessionId, state) {
   await ensureDirs();
-  await fs.writeFile(sessionFile(sessionId), `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  // Atomic write: concurrent hook invocations otherwise race on the session
+  // file and silently clobber each other's updates.
+  const target = sessionFile(sessionId);
+  const tmp = `${target}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`;
+  await fs.writeFile(tmp, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  await fs.rename(tmp, target);
 }
 
 export async function deleteSessionState(sessionId) {

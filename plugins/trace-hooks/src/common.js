@@ -64,6 +64,25 @@ export function attr(key, value) {
     }
     return { key, value: { doubleValue: value } };
   }
+  if (Array.isArray(value)) {
+    return {
+      key,
+      value: {
+        arrayValue: {
+          values: value.map((item) => {
+            if (typeof item === "string") return { stringValue: item };
+            if (typeof item === "boolean") return { boolValue: item };
+            if (typeof item === "number") {
+              return Number.isInteger(item)
+                ? { intValue: String(item) }
+                : { doubleValue: item };
+            }
+            return { stringValue: JSON.stringify(item) };
+          }),
+        },
+      },
+    };
+  }
   return { key, value: { stringValue: JSON.stringify(value) } };
 }
 
