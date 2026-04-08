@@ -287,8 +287,8 @@ async function emitTranscriptSpans(state, payload) {
           attr("orq.span.kind", "tool"),
           attr("gen_ai.tool.name", tool.name),
           attr("tool.name", tool.name),
-          attr("orq.input.value", toJson(inputValue)),
-          attr("orq.output.value", toJson(outputValue)),
+          attr("orq.input.value", inputValue),
+          attr("orq.output.value", outputValue),
           attr("input", toStringValue(inputValue)),
           attr("output", toStringValue(outputValue)),
         ]),
@@ -504,8 +504,8 @@ export async function handleSubagentStop() {
           attr("orq.span.kind", "tool"),
           attr("gen_ai.tool.name", tool.name),
           attr("tool.name", tool.name),
-          attr("orq.input.value", toJson(toolInput)),
-          attr("orq.output.value", toJson(toolOutput)),
+          attr("orq.input.value", toolInput),
+          attr("orq.output.value", toolOutput),
           attr("input", toStringValue(toolInput)),
           attr("output", toStringValue(toolOutput)),
         ]),
@@ -561,7 +561,10 @@ export async function runSafely(handler) {
     }
 
     await handler();
-  } catch {
+  } catch (err) {
     // Hooks must not block Claude Code flows.
+    if (process.env.ORQ_DEBUG === "1" || process.env.ORQ_DEBUG === "true") {
+      process.stderr.write(`[orq-trace] ${err?.stack || err}\n`);
+    }
   }
 }
