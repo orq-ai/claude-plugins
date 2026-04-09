@@ -1,7 +1,7 @@
 import { boolEnv } from "./common.js";
 
-const SENSITIVE_KEY_PATTERN = /(secret|password|token|api[_-]?key|authorization)/i;
-const SENSITIVE_VALUE_PATTERN = /(sk-[a-z0-9]{16,}|xox[baprs]-|ghp_[a-z0-9]{20,})/i;
+const SENSITIVE_KEY_PATTERN = /(secret|password|token|api[_-]?key|authorization|private[_-]?key|access[_-]?key)/i;
+const SENSITIVE_VALUE_PATTERN = /(sk-[a-z0-9]{16,}|sk_live_[a-z0-9]+|sk_test_[a-z0-9]+|xox[baprs]-|ghp_[a-z0-9]{20,}|ghu_[a-z0-9]+|ghs_[a-z0-9]+|AKIA[A-Z0-9]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/i;
 const SENSITIVE_PATH_PATTERN = /(^|\/|\\)\.env(\.|$)/i;
 
 function redactPrimitive(value) {

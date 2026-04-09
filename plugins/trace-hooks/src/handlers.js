@@ -253,12 +253,17 @@ async function emitTranscriptSpans(state, payload, { emitPending = false } = {})
     timeline.push({ type: "llm", timestamp: message.timestamp, data: message });
   }
 
-  // Sort by timestamp so spans are emitted in chronological order
+  // Sort by timestamp so spans are emitted in chronological order. When
+  // timestamps tie, LLM messages must come BEFORE tool calls — the assistant
+  // message that requests a tool is logged at the same instant as the tool's
+  // startTimestamp, but logically the LLM produced the request first.
   timeline.sort((a, b) => {
     if (!a.timestamp && !b.timestamp) return 0;
     if (!a.timestamp) return -1;
     if (!b.timestamp) return 1;
-    return a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0;
+    if (a.timestamp !== b.timestamp) return a.timestamp < b.timestamp ? -1 : 1;
+    if (a.type === b.type) return 0;
+    return a.type === "llm" ? -1 : 1;
   });
 
   const spans = [];
@@ -266,6 +271,14 @@ async function emitTranscriptSpans(state, payload, { emitPending = false } = {})
   // timestamp in the transcript) can use it as a start time instead of
   // producing zero-duration spans.
   let previousEndNs = state.current_turn_started_at_ns || null;
+  // Reconstruct the conversation thread so each LLM span carries the
+  // messages that led to its response (user prompt, tool results, prior
+  // assistant turns). Without this, LLM spans show empty input in the UI.
+  const conversation = [];
+  const initialUserInput = sanitizeContent(state.current_turn_input || "");
+  if (initialUserInput) {
+    conversation.push({ role: "user", content: String(initialUserInput) });
+  }
 
   for (const entry of timeline) {
     if (entry.type === "tool") {
@@ -273,11 +286,10 @@ async function emitTranscriptSpans(state, payload, { emitPending = false } = {})
       const inputValue = sanitizeContent(tool.input);
       const outputValue = sanitizeContent(tool.output);
 
-      // Skip Agent tool calls — SubagentStart/SubagentStop hooks handle these
-      // with richer metadata (agent ID, proper type from hook payload).
-      if (tool.name === "Agent") {
-        continue;
-      }
+      // Agent tool calls are emitted as tool spans here too. If
+      // SubagentStart/Stop hooks fire they add richer sibling subagent.*
+      // spans; some overlap is better than losing Agent calls entirely
+      // when those hooks don't fire (e.g. in -p / non-interactive mode).
 
       const toolStartNs = tool.startTimestamp ? isoToUnixNano(tool.startTimestamp) : undefined;
       const toolEndNs = tool.endTimestamp ? isoToUnixNano(tool.endTimestamp) : undefined;
@@ -301,6 +313,13 @@ async function emitTranscriptSpans(state, payload, { emitPending = false } = {})
         ]),
       }));
       previousEndNs = toolEndNs || toolStartNs || previousEndNs;
+      // Append tool result as a user-role message in the conversation thread
+      // so the next LLM span's input shows what the model received.
+      conversation.push({
+        role: "tool",
+        name: tool.name,
+        content: toStringValue(outputValue),
+      });
     } else {
       const message = entry.data;
       const outputValue = sanitizeContent(message.output || payload.last_assistant_message || "");
@@ -316,8 +335,16 @@ async function emitTranscriptSpans(state, payload, { emitPending = false } = {})
       const outputMessages = [outputMsg];
 
       const msgEndNs = message.timestamp ? isoToUnixNano(message.timestamp) : undefined;
-      // Use previous entry's end as start so LLM spans reflect real latency.
-      const msgStartNs = previousEndNs || msgEndNs;
+      // Use previous entry's end as start so LLM spans reflect real latency,
+      // but never let start exceed end (would produce a negative duration).
+      let msgStartNs = previousEndNs || msgEndNs;
+      if (msgStartNs && msgEndNs && BigInt(msgStartNs) > BigInt(msgEndNs)) {
+        msgStartNs = msgEndNs;
+      }
+
+      // Snapshot the conversation thread leading up to this response
+      // (everything received so far, before this assistant message).
+      const inputMessages = conversation.map((m) => ({ ...m }));
 
       spans.push(createSpan({
         traceId: state.trace_id,
@@ -334,6 +361,9 @@ async function emitTranscriptSpans(state, payload, { emitPending = false } = {})
           attr("gen_ai.provider.name", "anthropic"),
           attr("gen_ai.request.model", message.model || state.model || "unknown"),
           attr("gen_ai.response.model", message.model || state.model || "unknown"),
+          attr("gen_ai.input", toJson({ messages: inputMessages })),
+          attr("orq.input.value", toJson({ messages: inputMessages })),
+          attr("input", toJson({ messages: inputMessages })),
           attr("gen_ai.output", toJson({ messages: outputMessages, choices: [{ index: 0, message: outputMsg }] })),
           attr("gen_ai.response.finish_reasons", [message.stopReason || payload.stop_reason || "stop"]),
           attr("orq.output.value", toJson({ choices: [{ index: 0, message: outputMsg, finish_reason: message.stopReason || "stop" }] })),
@@ -341,6 +371,7 @@ async function emitTranscriptSpans(state, payload, { emitPending = false } = {})
           ...usageAttrs(message.usage || {}),
         ]),
       }));
+      conversation.push({ role: "assistant", content: String(outputValue) });
       previousEndNs = msgEndNs || previousEndNs;
     }
   }
@@ -504,7 +535,6 @@ export async function handleSubagentStop() {
     const parsed = await parseTranscript(agentTranscriptPath, 0);
 
     for (const tool of parsed.toolCalls) {
-      if (tool.name === "Agent") continue;
       const toolInput = sanitizeContent(tool.input);
       const toolOutput = sanitizeContent(tool.output);
       spans.push(createSpan({
