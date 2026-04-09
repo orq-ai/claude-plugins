@@ -94,15 +94,15 @@ function usageAttrs(usage) {
   ]);
 }
 
-async function closeCurrentTurn(state, endReason = "turn.closed") {
+function buildTurnSpan(state, endReason = "turn.closed") {
   if (!state.current_turn_span_id || !state.current_turn_started_at_ns) {
-    return state;
+    return null;
   }
 
   const inputValue = sanitizeContent(state.current_turn_input || "");
   const inputMessages = asMessages("user", inputValue);
 
-  const span = createSpan({
+  return createSpan({
     traceId: state.trace_id,
     spanId: state.current_turn_span_id,
     parentSpanId: state.root_span_id,
@@ -112,20 +112,20 @@ async function closeCurrentTurn(state, endReason = "turn.closed") {
     endTimeUnixNano: nowUnixNano(),
     attributes: compact([
       attr("orq.span.kind", "agent"),
+      attr("gen_ai.operation.name", `claude.turn.${state.turn_count}`),
       attr("claude_code.turn.index", state.turn_count),
       attr("claude_code.turn.end_reason", endReason),
-      attr("orq.input.value", toJson({ messages: inputMessages })),
+      attr("gen_ai.system", "anthropic"),
+      attr("gen_ai.provider.name", "anthropic"),
+      attr("gen_ai.agent.name", `claude.turn.${state.turn_count}`),
+      attr("gen_ai.agent.framework", "claude-code"),
+      // NOTE: Do NOT set both gen_ai.input and orq.input.value on agent spans.
+      // The backend's dot-notation $set for agent spans conflicts when both are
+      // present, causing a silent DuplicateKeyError that drops the span entirely.
       attr("gen_ai.input", toJson({ messages: inputMessages })),
       attr("input", toStringValue(inputValue)),
     ]),
   });
-
-  await sendSpan(span);
-
-  state.current_turn_span_id = null;
-  state.current_turn_started_at_ns = null;
-  state.current_turn_input = null;
-  return state;
 }
 
 export async function handleSessionStart() {
@@ -178,8 +178,15 @@ export async function handleUserPromptSubmit() {
     return;
   }
 
-  await closeCurrentTurn(state, "turn.replaced_by_new_prompt");
+  // Send the previous turn span before starting a new one (interactive mode)
+  const prevTurnSpan = buildTurnSpan(state, "turn.replaced_by_new_prompt");
+  if (prevTurnSpan) {
+    await sendSpan(prevTurnSpan);
+  }
 
+  state.current_turn_span_id = null;
+  state.current_turn_started_at_ns = null;
+  state.current_turn_input = null;
   state.turn_count += 1;
   state.current_turn_span_id = randomHex(8);
   state.current_turn_started_at_ns = nowUnixNano();
@@ -376,13 +383,11 @@ async function emitTranscriptSpans(state, payload, { emitPending = false } = {})
     }
   }
 
-  if (spans.length > 0) {
-    await sendSpans(spans);
-  }
-
   // Update state with transcript progress
   state.total_tool_calls = (state.total_tool_calls || 0) + parsed.toolCalls.length;
   state.last_processed_line = parsed.nextLine;
+
+  return spans;
 }
 
 export async function handleStop() {
@@ -397,8 +402,11 @@ export async function handleStop() {
     return;
   }
 
-  await emitTranscriptSpans(state, payload);
-  await closeCurrentTurn(state, "turn.stop");
+  const spans = await emitTranscriptSpans(state, payload);
+  if (spans.length > 0) {
+    await sendSpans(spans);
+  }
+  // Don't close the turn here — SessionEnd handles it in a single batch.
   await saveSessionState(sessionId, state);
 }
 
@@ -416,15 +424,16 @@ export async function handleSessionEnd() {
 
   // If no turn was opened (e.g. -p mode where UserPromptSubmit may not fire),
   // create a synthetic turn so transcript sub-spans have a parent.
-  if (!state.current_turn_span_id && state.turn_count === 0) {
-    state.turn_count = 1;
+  if (!state.current_turn_span_id) {
+    if (state.turn_count === 0) state.turn_count = 1;
     state.current_turn_span_id = randomHex(8);
     state.current_turn_started_at_ns = state.session_started_at_ns;
-    state.current_turn_input = payload.prompt || "";
+    state.current_turn_input = payload.prompt || state.current_turn_input || "";
   }
 
-  // Emit root span FIRST so backends that enforce parent-before-child
-  // ordering don't treat subsequent turn/tool/LLM spans as orphaned.
+  // Batch all remaining spans into a single sendSpans call so the entire
+  // trace lands in one HTTP request. Async hooks in -p mode get killed
+  // quickly — multiple sequential sends lose later spans.
   const rootSpan = createSpan({
     traceId: state.trace_id,
     spanId: state.root_span_id,
@@ -447,15 +456,38 @@ export async function handleSessionEnd() {
       attr("claude_code.end_reason", payload.reason || ""),
     ]),
   });
-  await sendSpan(rootSpan);
 
-  // Emit any unprocessed transcript spans (emitPending: surface any tool
-  // calls with no matching tool_result so they don't vanish from the trace)
+  // Collect transcript spans (any unprocessed by Stop)
+  let transcriptSpans = [];
   if (state.current_turn_span_id) {
-    await emitTranscriptSpans(state, payload, { emitPending: true });
+    transcriptSpans = await emitTranscriptSpans(state, payload, { emitPending: true });
   }
 
-  await closeCurrentTurn(state, payload.reason || "session.end");
+  // Send order matters: the orq backend processes spans in parallel and
+  // child spans do $inc upserts on parent_id. If a child's $inc creates a
+  // stub before the parent span's $set arrives, the parent's transaction
+  // loses the race with a DuplicateKeyError and is silently dropped.
+  // Sending parent spans FIRST ensures their document exists before any
+  // child $inc can race.
+  const turnSpan = buildTurnSpan(state, payload.reason || "session.end");
+
+  if (process.env.ORQ_DEBUG === "1" || process.env.ORQ_DEBUG === "true") {
+    const allSpans = [rootSpan, turnSpan, ...transcriptSpans].filter(Boolean);
+    const msg = `[orq-trace] SessionEnd: ${allSpans.length} spans (1 root + ${turnSpan ? 1 : 0} turn + ${transcriptSpans.length} transcript), turn_span_id=${state.current_turn_span_id}\n`;
+    process.stderr.write(msg);
+    try { const fs = await import("node:fs"); fs.default.appendFileSync("/tmp/orq-trace-debug.log", msg); } catch {}
+  }
+
+  // 1. Root span first (parent of turn)
+  await sendSpan(rootSpan);
+  // 2. Turn span (parent of transcript children)
+  if (turnSpan) {
+    await sendSpan(turnSpan);
+  }
+  // 3. Transcript children last (their $inc on parent is safe now)
+  if (transcriptSpans.length > 0) {
+    await sendSpans(transcriptSpans);
+  }
 
   await deleteSessionState(sessionId);
 }

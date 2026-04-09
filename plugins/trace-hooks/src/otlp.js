@@ -84,15 +84,30 @@ function buildBatchPayload(spans) {
 
 async function postPayload(payload) {
   const endpoint = getEndpoint();
+  if (process.env.ORQ_DEBUG === "1" || process.env.ORQ_DEBUG === "true") {
+    const spanCount = payload?.resourceSpans?.[0]?.scopeSpans?.[0]?.spans?.length || 0;
+    const names = (payload?.resourceSpans?.[0]?.scopeSpans?.[0]?.spans || []).map(s => s.name).join(", ");
+    const fs = await import("node:fs");
+    fs.default.appendFileSync("/tmp/orq-trace-debug.log", `[otlp] PRE-POST ${endpoint} spans=${spanCount} [${names}]\n`);
+    // Dump full payload for the turn span
+    if (names.includes("claude.turn")) {
+      fs.default.writeFileSync("/tmp/orq-turn-payload.json", JSON.stringify(payload, null, 2));
+    }
+  }
   const response = await fetch(endpoint, {
     method: "POST",
     headers: getHeaders(),
     body: JSON.stringify(payload),
   });
 
+  const body = await response.text().catch(() => "");
   if (!response.ok) {
-    const body = await response.text().catch(() => "");
     throw new Error(`OTLP send failed (${response.status}): ${body}`);
+  }
+
+  if (process.env.ORQ_DEBUG === "1" || process.env.ORQ_DEBUG === "true") {
+    const fs = await import("node:fs");
+    fs.default.appendFileSync("/tmp/orq-trace-debug.log", `[otlp] POST ${endpoint} ${response.status}: ${body}\n`);
   }
 }
 
