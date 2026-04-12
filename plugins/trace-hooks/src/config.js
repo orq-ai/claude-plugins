@@ -59,7 +59,7 @@ function resolveProfile() {
 /**
  * Returns the resolved profile name and which source it came from.
  */
-export function resolveProfileName() {
+function resolveProfileName() {
   const config = loadOrqConfig();
 
   if (process.env.ORQ_TRACE_PROFILE) {
@@ -103,23 +103,3 @@ export function getBaseUrl() {
   return resolveProfile()?.base_url || "https://my.orq.ai";
 }
 
-/**
- * Diagnostic: returns the fully resolved trace config for debugging.
- */
-export function getTraceConfig() {
-  const profile = resolveProfileName();
-  const apiKey = getApiKey();
-  const baseUrl = getBaseUrl();
-  return {
-    profile: profile.name,
-    profileSource: profile.source,
-    apiKey: apiKey ? `${apiKey.slice(0, 8)}...${apiKey.slice(-4)}` : null,
-    baseUrl,
-    envVars: {
-      ORQ_TRACE_PROFILE: process.env.ORQ_TRACE_PROFILE || null,
-      ORQ_PROFILE: process.env.ORQ_PROFILE || null,
-      ORQ_API_KEY: process.env.ORQ_API_KEY ? "(set)" : null,
-      ORQ_BASE_URL: process.env.ORQ_BASE_URL || null,
-    },
-  };
-}

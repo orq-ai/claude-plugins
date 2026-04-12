@@ -52,10 +52,6 @@ function getHeaders() {
   return headers;
 }
 
-function buildPayload(span) {
-  return buildBatchPayload([span]);
-}
-
 function buildBatchPayload(spans) {
   return {
     resourceSpans: [
@@ -149,8 +145,10 @@ export async function sendSpans(spans) {
   } catch {
     try {
       await enqueuePayload(payload);
-    } catch {
-      // Best effort only.
+    } catch (enqueueErr) {
+      process.stderr.write(
+        `[orq-trace] WARN: span data lost — send failed and enqueue failed: ${enqueueErr?.message || enqueueErr}\n`,
+      );
     }
   }
 }

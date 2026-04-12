@@ -91,10 +91,14 @@ export async function parseTranscript(transcriptPath, lastProcessedLine = 0, { e
       const output = textFromContent(messageContent);
       const usage = message.usage || {};
 
-      // Deduplicate: if the previous message has the same output, merge by
-      // keeping the one with more tokens (the final version)
+      // Deduplicate: if the previous message has the same output AND is from
+      // the same time window, merge by keeping the one with more tokens (the
+      // final version). The timestamp check prevents merging genuinely distinct
+      // messages that happen to have identical text (e.g. "Done.").
       const prev = messages.length > 0 ? messages[messages.length - 1] : null;
-      if (prev && prev.output === output && output) {
+      const sameWindow = prev?.timestamp && parsed.timestamp &&
+        Math.abs(new Date(parsed.timestamp) - new Date(prev.timestamp)) < 2000;
+      if (prev && prev.output === output && output && sameWindow) {
         const prevTokens = prev.usage.output_tokens || 0;
         const curTokens = usage.output_tokens || 0;
         if (curTokens >= prevTokens) {
@@ -102,7 +106,19 @@ export async function parseTranscript(transcriptPath, lastProcessedLine = 0, { e
           prev.stopReason = message.stop_reason;
           prev.model = message.model || prev.model;
           prev.timestamp = parsed.timestamp;
-          prev.parts = partsFromContent(messageContent);
+          // Merge parts: keep tool_call parts from the previous version if the
+          // new version lost them (Claude sometimes re-emits the message with
+          // higher tokens but without the tool_use content blocks).
+          const newParts = partsFromContent(messageContent);
+          const hasToolCall = (ps) => ps.some(p => p.type === "tool_call");
+          if (hasToolCall(prev.parts) && !hasToolCall(newParts)) {
+            // Preserve existing tool_call parts, update the rest
+            const prevToolParts = prev.parts.filter(p => p.type === "tool_call");
+            const newNonToolParts = newParts.filter(p => p.type !== "tool_call");
+            prev.parts = [...newNonToolParts, ...prevToolParts];
+          } else {
+            prev.parts = newParts;
+          }
         }
       } else {
         messages.push({
@@ -176,7 +192,3 @@ export async function parseTranscript(transcriptPath, lastProcessedLine = 0, { e
   };
 }
 
-// Keep backward-compatible alias
-export async function parseAssistantMessages(transcriptPath, lastProcessedLine = 0) {
-  return parseTranscript(transcriptPath, lastProcessedLine);
-}

@@ -43,7 +43,10 @@ export async function readStdinJson() {
 
   try {
     return JSON.parse(raw);
-  } catch {
+  } catch (err) {
+    if (process.env.ORQ_DEBUG === "1" || process.env.ORQ_DEBUG === "true") {
+      process.stderr.write(`[orq-trace] stdin JSON parse failed: ${err?.message}; raw=${raw.slice(0, 200)}\n`);
+    }
     return {};
   }
 }
@@ -98,6 +101,3 @@ export function boolEnv(name, defaultValue = false) {
   return value === "1" || value.toLowerCase() === "true";
 }
 
-export function envOr(name, fallback) {
-  return process.env[name] || fallback;
-}
