@@ -312,7 +312,8 @@ async function emitTranscriptSpans(state, payload, { emitPending = false } = {})
         endTimeUnixNano: toolEndNs,
         attributes: compact([
           attr("orq.span.kind", "tool"),
-          attr("gen_ai.operation.name", `execute_tool ${tool.name}`),
+          // Don't set gen_ai.operation.name — the adapter falls through to
+          // gen_ai.tool.name for the display name, matching canonical behavior.
           attr("gen_ai.tool.name", tool.name),
           attr("gen_ai.tool.call.arguments", toStringValue(inputValue)),
           attr("gen_ai.tool.call.result", toStringValue(outputValue)),
