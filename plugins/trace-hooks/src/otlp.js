@@ -18,12 +18,17 @@ function getEndpoint() {
       : `${explicit.replace(/\/$/, "")}/v1/traces`;
   }
 
+  // Orq convention: OTLP ingest lives on api.orq.ai, derived from my.orq.ai
+  // by swapping the subdomain. The /v2/otel/ prefix routes through the API gateway.
   const baseUrl = getBaseUrl();
   try {
     const url = new URL(baseUrl);
     const host = url.host.replace(/^my\./, "api.");
     return `${url.protocol}//${host}/v2/otel/v1/traces`;
-  } catch {
+  } catch (err) {
+    process.stderr.write(
+      `[orq-trace] WARN: invalid base URL "${baseUrl}", using default endpoint: ${err?.message}\n`,
+    );
     return "https://api.orq.ai/v2/otel/v1/traces";
   }
 }
@@ -83,12 +88,7 @@ async function postPayload(payload) {
   if (process.env.ORQ_DEBUG === "1" || process.env.ORQ_DEBUG === "true") {
     const spanCount = payload?.resourceSpans?.[0]?.scopeSpans?.[0]?.spans?.length || 0;
     const names = (payload?.resourceSpans?.[0]?.scopeSpans?.[0]?.spans || []).map(s => s.name).join(", ");
-    const fs = await import("node:fs");
-    fs.default.appendFileSync("/tmp/orq-trace-debug.log", `[otlp] PRE-POST ${endpoint} spans=${spanCount} [${names}]\n`);
-    // Dump full payload for the turn span
-    if (names.includes("claude.turn")) {
-      fs.default.writeFileSync("/tmp/orq-turn-payload.json", JSON.stringify(payload, null, 2));
-    }
+    try { const fs = await import("node:fs"); fs.default.appendFileSync("/tmp/orq-trace-debug.log", `[otlp] PRE-POST ${endpoint} spans=${spanCount} [${names}]\n`); } catch {}
   }
   const response = await fetch(endpoint, {
     method: "POST",
@@ -113,8 +113,8 @@ export async function drainQueue() {
     let payload;
     try {
       payload = await readQueuedPayload(filePath);
-    } catch {
-      // Corrupt/unreadable file — drop it and continue draining.
+    } catch (err) {
+      process.stderr.write(`[orq-trace] WARN: dropping corrupt queue file: ${err?.message}\n`);
       await deleteQueuedFile(filePath);
       continue;
     }
@@ -142,7 +142,8 @@ export async function sendSpans(spans) {
   try {
     await drainQueue();
     await postPayload(payload);
-  } catch {
+  } catch (sendErr) {
+    process.stderr.write(`[orq-trace] WARN: span send failed (queued for retry): ${sendErr?.message}\n`);
     try {
       await enqueuePayload(payload);
     } catch (enqueueErr) {

@@ -21,30 +21,23 @@ import {
 } from "./state.js";
 import { parseTranscript } from "./transcript.js";
 
-function noThrow(fn, fallback = null) {
+function getGitInfo(args, cwd) {
   try {
-    return fn();
-  } catch {
-    return fallback;
+    return execFileSync("git", args, { cwd, encoding: "utf8", timeout: 5000 }).trim();
+  } catch (err) {
+    // Exit code 128 = not a git repo, ENOENT = git not installed — both expected
+    if (err?.status === 128 || err?.code === "ENOENT") return null;
+    process.stderr.write(`[orq-trace] WARN: git ${args[0]} failed: ${err?.message}\n`);
+    return null;
   }
 }
 
 function getGitBranch(cwd) {
-  return noThrow(() =>
-    execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
-      cwd,
-      encoding: "utf8",
-    }).trim(),
-  );
+  return getGitInfo(["rev-parse", "--abbrev-ref", "HEAD"], cwd);
 }
 
 function getGitRepo(cwd) {
-  return noThrow(() =>
-    execFileSync("git", ["rev-parse", "--show-toplevel"], {
-      cwd,
-      encoding: "utf8",
-    }).trim(),
-  );
+  return getGitInfo(["rev-parse", "--show-toplevel"], cwd);
 }
 
 function getSessionId(payload) {

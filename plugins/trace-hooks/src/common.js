@@ -44,9 +44,7 @@ export async function readStdinJson() {
   try {
     return JSON.parse(raw);
   } catch (err) {
-    if (process.env.ORQ_DEBUG === "1" || process.env.ORQ_DEBUG === "true") {
-      process.stderr.write(`[orq-trace] stdin JSON parse failed: ${err?.message}; raw=${raw.slice(0, 200)}\n`);
-    }
+    process.stderr.write(`[orq-trace] WARN: stdin JSON parse failed: ${err?.message}; length=${raw.length}\n`);
     return {};
   }
 }

@@ -8,8 +8,12 @@ const STATE_ROOT =
 const BASE_STATE_DIR = path.join(STATE_ROOT, "orq_sessions");
 const BASE_QUEUE_DIR = path.join(STATE_ROOT, "orq_queue");
 
+function sanitizeSessionId(sessionId) {
+  return path.basename(sessionId).replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
 function sessionFile(sessionId) {
-  return path.join(BASE_STATE_DIR, `${sessionId}.json`);
+  return path.join(BASE_STATE_DIR, `${sanitizeSessionId(sessionId)}.json`);
 }
 
 let _dirsReady;
@@ -157,7 +161,10 @@ export async function listQueuedFiles() {
       .filter((name) => name.endsWith(".json"))
       .sort()
       .map((name) => path.join(BASE_QUEUE_DIR, name));
-  } catch {
+  } catch (err) {
+    if (err?.code !== "ENOENT") {
+      process.stderr.write(`[orq-trace] WARN: failed to list queue files: ${err?.message}\n`);
+    }
     return [];
   }
 }
@@ -185,7 +192,7 @@ export async function pruneStaleFiles() {
   try {
     const sessionNames = await fs.readdir(BASE_STATE_DIR);
     for (const name of sessionNames) {
-      if (!name.endsWith(".json")) continue;
+      if (!name.endsWith(".json") && !name.endsWith(".lock")) continue;
       const filePath = path.join(BASE_STATE_DIR, name);
       try {
         const stat = await fs.stat(filePath);

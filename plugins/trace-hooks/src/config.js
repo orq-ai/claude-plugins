@@ -15,7 +15,12 @@ function loadOrqConfig() {
   try {
     const raw = fs.readFileSync(ORQ_CONFIG_PATH, "utf8");
     _cached = JSON.parse(raw);
-  } catch {
+  } catch (err) {
+    if (err?.code !== "ENOENT") {
+      process.stderr.write(
+        `[orq-trace] WARN: failed to load orq config (${ORQ_CONFIG_PATH}): ${err?.message}\n`,
+      );
+    }
     _cached = {};
   }
   return _cached;
