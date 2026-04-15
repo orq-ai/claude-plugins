@@ -3,7 +3,7 @@
   "description": "Orq MCP server. Gives Claude access to Orq platform tools — agents, analytics, traces, experiments, and more.",
   "version": "0.2.0",
   "author": {
-    "name": "Orq AI"
+    "name": "Orq.ai"
   },
   "license": "MIT",
   "keywords": ["orq", "claude-code", "claude-desktop", "mcp"],
