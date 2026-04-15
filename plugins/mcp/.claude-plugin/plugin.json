@@ -6,8 +6,19 @@
     "name": "Orq.ai"
   },
   "license": "MIT",
+<<<<<<< Updated upstream
   "keywords": ["orq", "claude-code", "claude-desktop", "mcp"],
   "clients": ["claude-code", "claude-desktop", "claude-cowork"],
   "mcpServers": "./.mcp.json",
   "desktopConfig": "./claude_desktop_config.json"
+=======
+  "keywords": ["orq", "claude-code", "mcp"],
+  "userConfig": {
+    "ORQ_API_KEY": {
+      "description": "Your Orq API key (find it at orq.ai → Settings → API Keys)",
+      "sensitive": true
+    }
+  },
+  "mcpServers": "./.mcp.json"
+>>>>>>> Stashed changes
 }
