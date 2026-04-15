@@ -1,8 +1,28 @@
-# Orq Claude Code Plugins
+# Orq Claude Plugins
 
-Orq plugins for Claude Code — tracing, MCP tools, and agent skills.
+Orq plugins for Claude — tracing, MCP tools, and agent skills. Works with Claude Code, Claude Desktop, and Claude Cowork.
 
-## Installation
+## Claude Desktop (non-technical setup)
+
+If you're using the **Claude Desktop app** (not the terminal), see the [Desktop Setup Guide](./plugins/mcp/DESKTOP_SETUP.md) — no command line needed.
+
+The short version: add this to your `claude_desktop_config.json` (see the guide for where to find it):
+
+```json
+{
+  "mcpServers": {
+    "orq": {
+      "type": "http",
+      "url": "https://my.orq.ai/v2/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_ORQ_API_KEY_HERE"
+      }
+    }
+  }
+}
+```
+
+## Claude Code Installation
 
 ```bash
 # Add the marketplace

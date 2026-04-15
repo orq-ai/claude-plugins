@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "orq": {
+      "type": "http",
+      "url": "https://my.orq.ai/v2/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_ORQ_API_KEY_HERE"
+      }
+    }
+  }
+}
