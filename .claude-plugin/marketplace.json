@@ -16,9 +16,10 @@
     },
     {
       "name": "orq-mcp",
-      "description": "Orq MCP server for Claude Code. Gives agents access to Orq platform tools.",
+      "description": "Orq MCP server. Gives Claude access to Orq platform tools — agents, analytics, traces, experiments, and more.",
       "source": "./plugins/mcp",
-      "category": "development"
+      "category": "development",
+      "clients": ["claude-code", "claude-desktop", "claude-cowork"]
     },
     {
       "name": "orq-skills",
