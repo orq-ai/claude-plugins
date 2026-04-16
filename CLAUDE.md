@@ -15,7 +15,7 @@ ln -s ~/Developer/orq/claude-plugins ~/.claude/plugins/marketplaces/orq-claude-p
 
 ## Checking traces with the orq CLI
 
-Always prefer the `orq` CLI over MCP tools for inspecting traces and spans. Use `orq profile set prod-claude-code` to switch to the production Claude Code workspace, then `orq trace list`, `orq trace span list <trace-id>`, `orq trace span get <trace-id> <span-id>`. Use `--json` flag for full details.
+Always prefer the `orq` CLI over MCP tools for inspecting traces and spans. Use `orq config use prod-claude-code` to switch to the production Claude Code workspace, then `orq trace list`, `orq trace span list <trace-id>`, `orq trace span get <trace-id> <span-id>`. Use `--json` flag for full details.
 
 ## Trace plugin configuration
 
@@ -24,7 +24,7 @@ The trace hook resolves API key and base URL using this priority chain:
 1. **Environment variables** — `ORQ_API_KEY` and `ORQ_BASE_URL` (highest priority)
 2. **`ORQ_TRACE_PROFILE` env var** — trace-specific profile override
 3. **`ORQ_PROFILE` env var** — names a profile in `~/.config/orq/config.json`
-4. **orq CLI current profile** — whatever `orq profile set <name>` is set to
+4. **orq CLI current profile** — whatever `orq config use <name>` is set to
 
 Tracing is enabled whenever an API key can be resolved. Disable by disabling the plugin in CC settings.
 
@@ -63,7 +63,7 @@ env -u CLAUDECODE bash -c 'cd ~/Developer/orq/orq-python && claude -p "list file
 
 4. **Verify traces arrived**:
    ```bash
-   orq profile set prod-claude-code
+   orq config use prod-claude-code
    orq trace list --limit 3
    orq trace span list <trace-id>
    ```

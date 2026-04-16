@@ -1,11 +1,19 @@
 {
   "name": "orq-mcp",
-  "description": "Orq MCP server for Claude Code. Gives agents access to Orq platform tools.",
-  "version": "0.1.0",
+  "description": "Orq MCP server. Gives Claude access to Orq platform tools — agents, analytics, traces, experiments, and more.",
+  "version": "0.2.0",
   "author": {
-    "name": "Orq AI"
+    "name": "Orq.ai"
   },
   "license": "MIT",
-  "keywords": ["orq", "claude-code", "mcp"],
-  "mcpServers": "./.mcp.json"
+  "keywords": ["orq", "claude-code", "claude-desktop", "mcp"],
+  "clients": ["claude-code", "claude-desktop", "claude-cowork"],
+  "userConfig": {
+    "ORQ_API_KEY": {
+      "description": "Your Orq API key (find it at orq.ai → Settings → API Keys)",
+      "sensitive": true
+    }
+  },
+  "mcpServers": "./.mcp.json",
+  "desktopConfig": "./claude_desktop_config.json"
 }

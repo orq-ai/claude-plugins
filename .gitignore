@@ -1,2 +1,3 @@
 .env
 .claude/state/
+*.DS_Store
