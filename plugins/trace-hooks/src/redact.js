@@ -4,10 +4,25 @@ const SENSITIVE_KEY_PATTERN = /(secret|password|token|api[_-]?key|authorization|
 const SENSITIVE_VALUE_PATTERN = /(sk-[a-z0-9]{16,}|sk_live_[a-z0-9]+|sk_test_[a-z0-9]+|xox[baprs]-|ghp_[a-z0-9]{20,}|ghu_[a-z0-9]+|ghs_[a-z0-9]+|AKIA[A-Z0-9]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/i;
 const SENSITIVE_PATH_PATTERN = /(^|\/|\\)\.env(\.|$)/i;
 
+const MAX_JSON_REDACT_LEN = 10000;
+
 function redactPrimitive(value) {
   if (typeof value === "string") {
     if (SENSITIVE_VALUE_PATTERN.test(value) || SENSITIVE_PATH_PATTERN.test(value)) {
       return "[REDACTED]";
+    }
+    // Try to redact secrets embedded in stringified JSON (e.g. tool outputs
+    // like '{"password":"hunter2"}'). Key-based redaction only fires on
+    // parsed objects, so we need to parse, redact, and re-stringify.
+    if (value.length > 2 && value.length < MAX_JSON_REDACT_LEN &&
+        (value[0] === "{" || value[0] === "[")) {
+      try {
+        const parsed = JSON.parse(value);
+        const redacted = deepRedact(parsed);
+        return JSON.stringify(redacted);
+      } catch {
+        // Not valid JSON — return as-is
+      }
     }
   }
   return value;

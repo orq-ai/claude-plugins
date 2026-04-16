@@ -490,14 +490,12 @@ export async function handleSessionEnd() {
 
   if (!rootSpan) return;
 
-  // Send order matters: parent spans first so child $inc upserts find them.
-  await sendSpan(rootSpan);
-  if (turnSpan) {
-    await sendSpan(turnSpan);
-  }
-  if (transcriptSpans.length > 0) {
-    await sendSpans(transcriptSpans);
-  }
+  // Batch all spans in one HTTP request — parents first in the array so the
+  // backend processes them before child $inc upserts arrive. Single request
+  // also avoids triple drainQueue overhead and the queue-eviction problem
+  // where root/turn spans (sent first) would be the oldest queued entries.
+  const batch = [rootSpan, turnSpan, ...transcriptSpans].filter(Boolean);
+  await sendSpans(batch);
 }
 
 export async function handleSubagentStart() {
