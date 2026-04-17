@@ -321,15 +321,15 @@ async function emitTranscriptSpans(state, payload, { emitPending = false } = {})
         endTimeUnixNano: toolEndNs,
         attributes: compact([
           attr("orq.span.kind", "tool"),
-          // Don't set gen_ai.operation.name — the adapter falls through to
-          // gen_ai.tool.name for the display name, matching canonical behavior.
           attr("gen_ai.tool.name", tool.name),
           attr("gen_ai.tool.call.arguments", toStringValue(inputValue)),
           attr("gen_ai.tool.call.result", toStringValue(outputValue)),
+          // Set gen_ai.input/output so the backend uses these directly
+          // instead of constructing a messages-wrapped version.
+          attr("gen_ai.input", toStringValue(inputValue)),
+          attr("gen_ai.output", toStringValue(outputValue)),
           attr("orq.input.value", toStringValue(inputValue)),
           attr("orq.output.value", toStringValue(outputValue)),
-          attr("input", toStringValue(inputValue)),
-          attr("output", toStringValue(outputValue)),
           tool.incomplete ? attr("claude_code.tool.incomplete", true) : null,
         ]),
       }));
