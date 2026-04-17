@@ -64,24 +64,6 @@ See [`plugins/trace-hooks/README.md`](./plugins/trace-hooks/README.md) for the f
 
 ## Plugins
 
-### [`orq-trace`](./plugins/trace-hooks)
-
-Automatically trace Claude Code sessions to Orq. Captures sessions, turns, tool calls, and LLM responses as hierarchical OTLP spans sent to `/v2/otel/v1/traces`.
-
-Span tree:
-
-```
-orq.claude_code.session
-├── claude_code.turn.1
-│   ├── chat claude-opus-4-6
-│   ├── execute_tool Read
-│   ├── chat claude-opus-4-6
-│   ├── execute_tool Edit
-│   └── subagent.Explore
-├── claude_code.turn.2
-│   └── ...
-```
-
 ### [`orq-mcp`](./plugins/mcp)
 
 Orq MCP server — gives Claude Code access to Orq platform tools via `https://my.orq.ai/v2/mcp`.
@@ -95,14 +77,75 @@ Agent skills for the Build → Evaluate → Optimize lifecycle on orq.ai. Includ
 
 See the [orq-skills README](https://github.com/orq-ai/orq-skills) for full documentation.
 
+### [`orq-trace`](./plugins/trace-hooks)
+
+Automatically trace Claude Code sessions to Orq. Captures sessions, turns, tool calls, and LLM responses as hierarchical OTLP spans sent to `/v2/otel/v1/traces`.
+
+Span tree:
+
+```text
+orq.claude_code.session
+├── claude_code.turn.1
+│   ├── chat claude-opus-4-6
+│   ├── execute_tool Read
+│   ├── chat claude-opus-4-6
+│   ├── execute_tool Edit
+│   └── subagent.Explore
+├── claude_code.turn.2
+│   └── ...
+```
+
 ## Development
 
-Test plugins locally:
+### Quick test (one-off)
 
 ```bash
 claude --plugin-dir ./plugins/trace-hooks
 claude --plugin-dir ./plugins/mcp
 claude --plugin-dir ./plugins/skills
+```
+
+### Local installation via marketplace symlink
+
+For iterative development, symlink the marketplace directory to your local clone so edits take effect without reinstalling:
+
+```bash
+rm -rf ~/.claude/plugins/marketplaces/orq-claude-plugin
+ln -s ~/Developer/orq/claude-plugins ~/.claude/plugins/marketplaces/orq-claude-plugin
+```
+
+Then enable the plugins in `~/.claude/plugins/config.json`:
+
+```json
+{
+  "enabledPlugins": {
+    "orq-trace@orq-claude-plugin": true,
+    "orq-skills@orq-claude-plugin": true
+  }
+}
+```
+
+**Gotcha — hook cache**: Claude Code executes hooks from `~/.claude/plugins/cache/orq-claude-plugin/<plugin>/<version>/`, **not** from the symlinked marketplace. After editing hook source files, copy them to the cache:
+
+```bash
+cp plugins/trace-hooks/src/*.js ~/.claude/plugins/cache/orq-claude-plugin/orq-trace/0.1.0/src/
+```
+
+CC may also overwrite the symlink on marketplace sync — re-run the `ln -s` command if hooks stop working after a CC update.
+
+### Testing trace hooks
+
+Hooks don't fire inside an existing CC session (`CLAUDECODE=1` suppresses them). Test with:
+
+```bash
+env -u CLAUDECODE bash -c 'cd <repo> && claude -p "list files with ls" 2>&1'
+```
+
+Verify traces arrived:
+
+```bash
+orqi profile set prod-claude-code
+orqi trace list --limit 3
 ```
 
 ## Updating
