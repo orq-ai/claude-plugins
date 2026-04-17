@@ -4,7 +4,7 @@ Last updated: 2026-04-17
 
 ## Current Feature Inventory
 
-### Hooks Used (8 of 27 available)
+### Hooks Used (9 of 27 available)
 
 | Hook | Handler | Purpose |
 |---|---|---|
@@ -12,6 +12,7 @@ Last updated: 2026-04-17
 | UserPromptSubmit | `handleUserPromptSubmit` | Open new turn, close previous turn span |
 | PostToolUseFailure | `handlePostToolUseFailure` | Track failed tool calls |
 | Stop | `handleStop` | Process transcript, emit tool + LLM spans |
+| StopFailure | `handleStopFailure` | Emit error span for API failures |
 | PreCompact | `handlePreCompact` | Emit context compaction event span |
 | SessionEnd | `handleSessionEnd` | Batch-send root + turn + transcript spans, cleanup |
 | SubagentStart | `handleSubagentStart` | Track subagent lifecycle start |
@@ -27,6 +28,7 @@ Last updated: 2026-04-17
 | Tool call | `execute_tool <name>` | tool | tool name, arguments, result, incomplete flag |
 | Subagent | `subagent.<type>` | agent | agent_id, type, output, child tool+LLM spans |
 | Compact | `claude.context.compact` | event | turn count at compaction |
+| Error | `claude_code.error.<reason>` | event | error type, message, status=ERROR |
 
 ### Other Features
 
@@ -56,10 +58,9 @@ Last updated: 2026-04-17
 | Subagent tracking | Yes | Yes | Parity |
 | Redaction | Yes (deep) | No | We're ahead |
 | Offline queue + retry | Yes | No | We're ahead |
-| Parent span attachment (`CC_PARENT_SPAN_ID`) | No | Yes | **Gap** — RES-689 |
-| Experiment linking (`CC_EXPERIMENT_ID`) | No | Yes | **Gap** |
+| Parent span attachment (`ORQ_PARENT_SPAN_ID`) | No | Yes | **Gap** — RES-689 |
 | Bidirectional (query traces from CC) | No | Yes (MCP) | **Gap** — RES-693 |
-| Prompt caching tokens | No | Yes | **Gap** — RES-677 |
+| Prompt caching tokens | Yes | Yes | Parity (RES-677) |
 
 ### vs Langfuse
 
@@ -68,7 +69,7 @@ Last updated: 2026-04-17
 | Hook types used | 8 | 1 (Stop only) | We're ahead |
 | Subagent tracking | Yes | No | We're ahead |
 | Conversation threading | Yes | No | We're ahead |
-| Content truncation (`MAX_CHARS`) | No | Yes (20K default) | **Gap** — RES-684 |
+| Content truncation (`MAX_CHARS`) | Yes (`ORQ_TRACE_MAX_CONTENT_LEN`) | Yes (20K default) | Parity (RES-684) |
 | Trace URL in git commits | No | Yes | **Gap** — RES-692 |
 | Self-hostable | N/A (SaaS) | Yes | Different model |
 | Token counting | Yes | No | We're ahead |
@@ -79,8 +80,8 @@ Last updated: 2026-04-17
 |---|---|---|---|
 | Per-session traces | Yes | Yes | Parity |
 | Org-wide dashboards | No | Yes | **Gap** (backend/UI) |
-| Per-user aggregation | No | Yes | **Gap** — RES-682 |
-| Error rate tracking | No | Yes | **Gap** — RES-680 |
+| Per-user aggregation | Yes (`metadata.user`) | Yes | Parity (RES-682) |
+| Error rate tracking | Yes (StopFailure hook) | Yes | Parity (RES-680) |
 | Lines of code changed | No | Yes | **Gap** |
 | Model-specific cost breakdown | Yes | Yes | Parity |
 
@@ -88,7 +89,7 @@ Last updated: 2026-04-17
 
 | Feature | orq | disler | Gap |
 |---|---|---|---|
-| Hooks used | 8 | 12 | **Gap** — missing StopFailure, Permission*, PostToolUse |
+| Hooks used | 9 | 12 | **Gap** — missing Permission*, PostToolUse |
 | Real-time dashboard | No | Yes (WebSocket) | **Gap** (different architecture) |
 | Security hooks (block commands) | No | Yes | Out of scope for tracing |
 | Live pulse chart | No | Yes | **Gap** (UI feature) |
@@ -110,11 +111,12 @@ Last updated: 2026-04-17
 
 | Ticket | Title | Status |
 |---|---|---|
-| RES-677 | Capture prompt caching tokens | Backlog |
-| RES-678 | Add git commit hash to session span | Backlog |
-| RES-680 | Add StopFailure hook for API error visibility | Backlog |
-| RES-682 | Add user identity to trace spans | Backlog |
-| RES-684 | Add content truncation with configurable max length | Backlog |
+| RES-677 | Capture prompt caching tokens | Done |
+| RES-678 | Add git commit hash to session span | Done |
+| RES-680 | Add StopFailure hook for API error visibility | Done |
+| RES-682 | Add user identity to trace spans | Done |
+| RES-684 | Add content truncation with configurable max length | Done |
+| RES-695 | Allow metadata.* attributes through OTLP processor | Done (merged, awaiting deploy) |
 
 ### Phase 2 — Observability Depth
 
@@ -125,6 +127,7 @@ Last updated: 2026-04-17
 | RES-688 | Add PermissionRequest/PermissionDenied hooks | Backlog |
 | RES-689 | Add parent span attachment for external traces | Backlog |
 | RES-690 | Add granular content capture controls | Backlog |
+| RES-696 | Add PostToolUse hook for real-time tool success tracking | Backlog |
 
 ### Phase 3 — Platform Differentiation
 
@@ -137,12 +140,11 @@ Last updated: 2026-04-17
 
 ---
 
-## Unused Claude Code Hooks (19 of 27)
+## Unused Claude Code Hooks (18 of 27)
 
 | Hook | Potential Use | Priority |
 |---|---|---|
-| **StopFailure** | API errors, rate limits as error spans | P0 — RES-680 |
-| **PostToolUse** | Real-time tool success data | P1 |
+| **PostToolUse** | Real-time tool success data | P1 — RES-696 |
 | **PermissionRequest** | Tool approval latency tracking | P1 — RES-688 |
 | **PermissionDenied** | Auto-mode denial tracking | P1 — RES-688 |
 | **PostCompact** | Context size after compaction | P2 |
@@ -157,12 +159,8 @@ Last updated: 2026-04-17
 | Elicitation / ElicitationResult | MCP user input tracking | P3 |
 | PreToolUse | Tool-level sampling/filtering | P3 |
 
-## Backend: How Custom Attributes Become Filterable
+## Custom Filterable Attributes
 
-The traces-processor has two systems:
+To make a custom field filterable in the orq trace UI, emit it as a `metadata.<key>` attribute on the root session span. These are auto-registered as filterable dimensions.
 
-1. **Registry** (`registry_handler.go`): Auto-indexes a fixed allowlist of ~35 known attribute keys into Redis for the filter UI. Custom keys outside the allowlist are stored but NOT filterable.
-
-2. **Metadata** (`metadata_handler.go`): Watches for `metadata.*` prefixed attributes on **root spans only**. These are auto-registered in MongoDB and become filterable dimensions in the trace UI.
-
-**To make any custom field filterable**: emit it as `metadata.<key>` on the root session span.
+Example: `attr("metadata.team", "research")` on the root span makes `team` available as a filter.
