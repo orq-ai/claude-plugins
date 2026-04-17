@@ -48,17 +48,19 @@ ORQ_API_KEY=sk-... claude
 
 | Variable | Description |
 |---|---|
-| `ORQ_API_KEY` | API key |
+| `ORQ_TRACE_PROFILE` | Orqi profile for trace destination (**highest priority** — decouples traces from CLI/MCP) |
+| `ORQ_API_KEY` | API key (used if no trace profile is set) |
 | `ORQ_BASE_URL` | Orq API base URL (default: `https://my.orq.ai`) |
-| `TRACE_TO_ORQ` | Explicitly enable tracing (`true`/`1`) |
+| `ORQ_TRACE_USER` | User identity attached to traces (falls back to `git config user.email`) |
+| `ORQ_TRACE_MAX_CONTENT_LEN` | Truncate content exceeding this character limit |
 | `TRACE_ORQ_REDACT_CONTENT` | Strip all input/output bodies from traces |
-| `ORQ_DISABLE_TRACING` | Force-disable tracing (`true`/`1`) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | Override the OTLP endpoint directly |
 | `OTEL_EXPORTER_OTLP_HEADERS` | Extra headers for the OTLP endpoint |
+| `ORQ_DEBUG` | Enable debug logging to stderr (`true`/`1`) |
 
-Tracing auto-enables when `ORQ_API_KEY` or `OTEL_EXPORTER_OTLP_ENDPOINT` is set.
+Tracing auto-enables when an API key can be resolved (via `ORQ_TRACE_PROFILE`, `ORQ_API_KEY`, or orqi CLI profile).
 
-Environment variables can be set in your shell (`~/.zshrc`), via a `.env` file, or as a command prefix (`ORQ_BASE_URL=... claude`).
+See [`plugins/trace-hooks/README.md`](./plugins/trace-hooks/README.md) for the full configuration reference.
 
 ## Plugins
 
@@ -70,12 +72,13 @@ Span tree:
 
 ```
 orq.claude_code.session
-├── claude.turn.1
-│   ├── tool.Read
-│   ├── tool.Edit
-│   ├── claude-sonnet-4-20250514.response
+├── claude_code.turn.1
+│   ├── chat claude-opus-4-6
+│   ├── execute_tool Read
+│   ├── chat claude-opus-4-6
+│   ├── execute_tool Edit
 │   └── subagent.Explore
-├── claude.turn.2
+├── claude_code.turn.2
 │   └── ...
 ```
 
