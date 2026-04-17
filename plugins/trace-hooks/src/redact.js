@@ -57,5 +57,18 @@ export function sanitizeContent(value) {
   if (stripBodies) {
     return "[REDACTED]";
   }
-  return deepRedact(value);
+
+  const redacted = deepRedact(value);
+
+  const maxLen = parseInt(process.env.ORQ_TRACE_MAX_CONTENT_LEN, 10);
+  if (!maxLen || maxLen <= 0) {
+    return redacted;
+  }
+
+  const str = typeof redacted === "string" ? redacted : JSON.stringify(redacted);
+  if (str && str.length > maxLen) {
+    return str.slice(0, maxLen) + ` ... [truncated, original_length=${str.length}]`;
+  }
+
+  return redacted;
 }
