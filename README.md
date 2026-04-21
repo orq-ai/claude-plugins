@@ -2,7 +2,29 @@
 
 Orq plugins for Claude — tracing, MCP tools, and agent skills. Works with Claude Code, Claude Desktop, and Claude Cowork.
 
-## Claude Desktop (non-technical setup)
+## Prerequisites
+
+Get an API key from [orq.ai → Settings → API Keys](https://my.orq.ai) and set it in your shell:
+
+```bash
+export ORQ_API_KEY=sk-...
+```
+
+## Installation
+
+### Claude Code
+
+```bash
+# Add the marketplace
+claude plugin marketplace add orq-ai/claude-plugins
+
+# Install whichever plugins you need
+claude plugin install orq-trace@orq-claude-plugin
+claude plugin install orq-mcp@orq-claude-plugin
+claude plugin install orq-skills@orq-claude-plugin
+```
+
+### Claude Desktop
 
 If you're using the **Claude Desktop app** (not the terminal), see the [Desktop Setup Guide](./plugins/mcp/DESKTOP_SETUP.md) — no command line needed.
 
@@ -20,18 +42,6 @@ The short version: add this to your `claude_desktop_config.json` (see the guide 
     }
   }
 }
-```
-
-## Claude Code Installation
-
-```bash
-# Add the marketplace
-claude plugin marketplace add orq-ai/claude-plugins
-
-# Install whichever plugins you need
-claude plugin install orq-trace@orq-claude-plugin
-claude plugin install orq-mcp@orq-claude-plugin
-claude plugin install orq-skills@orq-claude-plugin
 ```
 
 ## Configuration
@@ -64,6 +74,19 @@ See [`plugins/trace-hooks/README.md`](./plugins/trace-hooks/README.md) for the f
 
 ## Plugins
 
+### [`orq-mcp`](./plugins/mcp)
+
+Orq MCP server — gives Claude Code access to Orq platform tools via `https://my.orq.ai/v2/mcp`.
+
+### [`orq-skills`](./plugins/skills) (submodule → [orq-ai/orq-skills](https://github.com/orq-ai/orq-skills))
+
+Agent skills for the Build → Evaluate → Optimize lifecycle on orq.ai. Includes:
+
+- **Skills** — build-agent, build-evaluator, run-experiment, optimize-prompt, analyze-trace-failures, generate-synthetic-dataset, prompt-learning
+- **Commands** — `/orq:quickstart`, `/orq:invoke`, `/orq:workspace`, `/orq:traces`, `/orq:analytics`, `/orq:models`
+
+See the [orq-skills README](https://github.com/orq-ai/orq-skills) for full documentation.
+
 ### [`orq-trace`](./plugins/trace-hooks)
 
 Automatically trace Claude Code sessions to Orq. Captures sessions, turns, tool calls, and LLM responses as hierarchical OTLP spans sent to `/v2/otel/v1/traces`.
@@ -81,19 +104,6 @@ orq.claude_code.session
 ├── claude_code.turn.2
 │   └── ...
 ```
-
-### [`orq-mcp`](./plugins/mcp)
-
-Orq MCP server — gives Claude Code access to Orq platform tools via `https://my.orq.ai/v2/mcp`.
-
-### [`orq-skills`](./plugins/skills) (submodule → [orq-ai/orq-skills](https://github.com/orq-ai/orq-skills))
-
-Agent skills for the Build → Evaluate → Optimize lifecycle on orq.ai. Includes:
-
-- **Skills** — build-agent, build-evaluator, run-experiment, optimize-prompt, analyze-trace-failures, generate-synthetic-dataset, prompt-learning
-- **Commands** — `/orq:quickstart`, `/orq:invoke`, `/orq:workspace`, `/orq:traces`, `/orq:analytics`, `/orq:models`
-
-See the [orq-skills README](https://github.com/orq-ai/orq-skills) for full documentation.
 
 ## Development
 
