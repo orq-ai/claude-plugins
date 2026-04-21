@@ -6,5 +6,13 @@
     "name": "Orq AI"
   },
   "license": "MIT",
-  "keywords": ["orq", "claude-code", "otel", "otlp", "tracing"]
+  "keywords": ["orq", "claude-code", "otel", "otlp", "tracing"],
+  "clients": ["claude-code"],
+  "hooks": "../hooks/hooks.json",
+  "userConfig": {
+    "ORQ_API_KEY": {
+      "description": "Your Orq API key (find it at orq.ai → Settings → API Keys)",
+      "sensitive": true
+    }
+  }
 }

@@ -20,6 +20,13 @@
       "description": "Agent skills for building, evaluating, and optimizing LLM pipelines on orq.ai. Includes skills for experiment design, prompt optimization, trace analysis, dataset generation, and agent/evaluator creation.",
       "source": "./plugins/skills",
       "category": "development"
+    },
+    {
+      "name": "orq-trace",
+      "description": "Automatically trace Claude Code sessions to Orq. Captures sessions, turns, tool calls, and LLM responses as hierarchical OTLP spans.",
+      "source": "./plugins/trace-hooks",
+      "category": "development",
+      "clients": ["claude-code"]
     }
   ]
 }
