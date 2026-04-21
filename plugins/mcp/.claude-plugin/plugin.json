@@ -7,13 +7,13 @@
   },
   "license": "MIT",
   "keywords": ["orq", "claude-code", "claude-desktop", "mcp"],
-  "clients": ["claude-code", "claude-desktop", "claude-cowork"],
   "userConfig": {
     "ORQ_API_KEY": {
+      "type": "string",
+      "title": "ORQ API Key",
       "description": "Your Orq API key (find it at orq.ai → Settings → API Keys)",
       "sensitive": true
     }
   },
-  "mcpServers": "./.mcp.json",
-  "desktopConfig": "./claude_desktop_config.json"
+  "mcpServers": "./.mcp.json"
 }
