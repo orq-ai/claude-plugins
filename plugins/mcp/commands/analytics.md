@@ -1,6 +1,6 @@
 ---
 description: Show performance metrics — latency, cost, token usage, and error rates across deployments
-argument-hint: [--deployment <name>] [--last <duration>]
+argument-hint: "[--deployment <name>] [--last <duration>]"
 allowed-tools: Bash, AskUserQuestion, orq*
 ---
 
