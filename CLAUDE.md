@@ -81,11 +81,14 @@ env -u CLAUDECODE bash -c 'cd ~/Developer/orq/orq-python && claude -p "list file
 
 ### Plugin cache vs marketplace
 
-Claude Code actually loads hook code from `~/.claude/plugins/cache/orq-claude-plugin/orq-trace/0.1.0/`, **not** the marketplace directory. After editing source files, copy them to the cache:
+Claude Code actually loads hook code from the cache directory, **not** the marketplace directory. After editing source files, copy them to the cache:
 
 ```bash
-cp plugins/trace-hooks/src/*.js ~/.claude/plugins/cache/orq-claude-plugin/orq-trace/0.1.0/src/
+cache_dir=$(ls -d ~/.claude/plugins/cache/orq-claude-plugin/orq-trace/*/  2>/dev/null | tail -1)
+cp plugins/trace-hooks/src/*.js "${cache_dir}src/"
 ```
+
+The symlink approach (top of this file) is preferred — edits take effect immediately with no copy step. Use the cache copy only if CC overrides the symlink.
 
 ### Validation checklist
 

@@ -1,3 +1,3 @@
-[submodule "plugins/skills"]
-	path = plugins/skills
-	url = https://github.com/orq-ai/orq-skills.git
+[submodule "vendor/assistant-plugins"]
+	path = vendor/assistant-plugins
+	url = https://github.com/orq-ai/assistant-plugins.git

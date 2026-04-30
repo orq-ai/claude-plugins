@@ -1,5 +1,10 @@
 # Orq Claude Plugins
 
+> **⚠️ End of Life — May 2026**
+>
+> This repository is deprecated and will reach end of life at the end of May 2026.
+> Active development has moved to [orq-ai/assistant-plugins](https://github.com/orq-ai/assistant-plugins). Please migrate there.
+
 Orq plugins for Claude — tracing, MCP tools, and agent skills. Works with Claude Code, Claude Desktop, and Claude Cowork.
 
 ## Prerequisites
@@ -16,7 +21,7 @@ export ORQ_API_KEY=sk-...
 
 ```bash
 # Add the marketplace
-claude plugin marketplace add orq-ai/claude-plugins
+claude plugin marketplace add orq-ai/assistant-plugins
 
 # Install whichever plugins you need
 claude plugin install orq-trace@orq-claude-plugin
@@ -78,14 +83,14 @@ See [`plugins/trace-hooks/README.md`](./plugins/trace-hooks/README.md) for the f
 
 Orq MCP server — gives Claude Code access to Orq platform tools via `https://my.orq.ai/v2/mcp`.
 
-### [`orq-skills`](./plugins/skills) (submodule → [orq-ai/orq-skills](https://github.com/orq-ai/orq-skills))
+### [`orq-skills`](./plugins/skills) (submodule → [orq-ai/assistant-plugins](https://github.com/orq-ai/assistant-plugins))
 
 Agent skills for the Build → Evaluate → Optimize lifecycle on orq.ai. Includes:
 
 - **Skills** — build-agent, build-evaluator, run-experiment, optimize-prompt, analyze-trace-failures, generate-synthetic-dataset, prompt-learning
 - **Commands** — `/orq:quickstart`, `/orq:invoke`, `/orq:workspace`, `/orq:traces`, `/orq:analytics`, `/orq:models`
 
-See the [orq-skills README](https://github.com/orq-ai/orq-skills) for full documentation.
+See the [orq-skills README](https://github.com/orq-ai/assistant-plugins) for full documentation.
 
 ### [`orq-trace`](./plugins/trace-hooks)
 
